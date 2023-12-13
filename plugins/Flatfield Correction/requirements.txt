@@ -1,0 +1,9 @@
+numpy
+scikit-image
+opencv-contrib-python
+tifffile[all]
+numpy
+matplotlib
+Pillow
+scipy
+pystackreg
