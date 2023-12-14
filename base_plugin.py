@@ -7,7 +7,7 @@ from typing import *
 import zarr
 from PyQt6.QtCore import QEventLoop, QObject, pyqtSignal
 from PyQt6.QtWidgets import QFileDialog
-
+from views.main_window import MainWindow
 from utils.gui_utils import virtual_sequence_bbox
 
 
@@ -34,12 +34,12 @@ class BasePlugin(QObject):
     """
 
     @abstractmethod
-    def __init__(self, main_window, plugin_name):
+    def __init__(self, main_window: MainWindow, plugin_name: str):
         super().__init__()
-        self.gui_result = None
-        self.main_window = main_window
-        self.loop = None
-        self.name = plugin_name
+        self.gui_result: object = None
+        self.main_window: MainWindow = main_window
+        self.loop: QEventLoop = None
+        self.name: str = plugin_name
 
     @abstractmethod
     def get_name(self):
@@ -58,6 +58,15 @@ class BasePlugin(QObject):
 
         This method should be implemented to provide a brief description
         of what the plugin does.
+        """
+        pass
+
+    @abstractmethod
+    def execute(self, *args, **kwargs):
+        """
+        Execute the plugin.
+
+        This method should be implemented to execute the plugin.
         """
         pass
 
@@ -87,7 +96,7 @@ class BasePlugin(QObject):
         as if it was a normal function call.
     """
 
-    def request_gui(self, callback, *args, **kwargs):
+    def request_gui(self, callback: object, *args, **kwargs):
         self.loop = QEventLoop()
         self.gui_result = None
 
@@ -99,7 +108,7 @@ class BasePlugin(QObject):
         self.main_window.gui_response.disconnect(self.on_gui_response)
         return self.gui_result
 
-    def on_gui_response(self, result):
+    def on_gui_response(self, result: object):
         self.gui_result = result
         self.loop.exit()
 
@@ -133,3 +142,23 @@ class BasePlugin(QObject):
         Tuple[int, List[int]]: Tuple containing the index of the selected slice and the bounding box coordinates.
         """
         return self.request_gui(virtual_sequence_bbox, zarr_array=zarr_array)
+
+    def update_progress(
+        self, value: int, message: str, index: int = None, total: int = None
+    ):
+        """
+        Update the progress bar and label with the given value and message.
+
+        Args:
+        - value (int): The value to set the progress bar to.
+        - message (str): The message to display in the progress label.
+
+        Raises:
+        - No specific exceptions are raised by this function.
+
+        Example:
+        ```
+        self.update_progress(50, "Processing...")
+        ```
+        """
+        self.progress.emit(self, value, message, index, total)

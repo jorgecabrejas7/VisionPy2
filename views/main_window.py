@@ -122,7 +122,8 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("VisionPy")
         self.setGeometry(300, 300, 400, 100)
         for plugin_name in self.plugin_paths:
-            action = QAction(plugin_name, self)
+            display_name = plugin_name.replace("__", ".").replace("_", " ")
+            action = QAction(display_name, self)
             action.triggered.connect(
                 lambda checked, name=plugin_name: self.run_plugin(name)
             )
@@ -279,8 +280,8 @@ class MainWindow(QMainWindow):
             value,
             message,
             index,
-            (k for k, v in self.plugin_paths.items() if v == plugin_instance),
-            None,
+            message,
+            total,
         )
 
     def on_plugin_error(self, error_message, plugin_name):
