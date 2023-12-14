@@ -9,17 +9,16 @@ from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
     QDialog,
+    QFileDialog,
     QMainWindow,
     QMessageBox,
     QProgressBar,
     QToolBar,
     QVBoxLayout,
     QWidget,
-    QFileDialog,
 )
 
 from utils.gui_utils import *
-
 from utils.progress_window import ProgressWindow
 
 
@@ -93,7 +92,7 @@ class InstallThread(QThread):
                 try:
                     subprocess.check_call(
                         [sys.executable, "-m", "pip", "install", requirement]
-                    )volume_utils
+                    )
                 except subprocess.CalledProcessError as e:
                     self.error.emit(f"Failed to install {requirement}: {e}")
                     break
@@ -109,17 +108,25 @@ class InstallThread(QThread):
 
 # MainWindow definition
 class MainWindow(QMainWindow):
+    gui_response = pyqtSignal(object)
+
     def __init__(self):
         super().__init__()
         self.progress_windows = {}
         self.threads = {}
-        self.init_ui()
+        self.plugin_menu = self.menuBar().addMenu("Plugins")
         self.discover_plugins()
+        self.init_ui()
 
     def init_ui(self):
         self.setWindowTitle("VisionPy")
         self.setGeometry(300, 300, 400, 100)
-        self.plugin_menu = self.menuBar().addMenu("Plugins")
+        for plugin_name in self.plugin_paths:
+            action = QAction(plugin_name, self)
+            action.triggered.connect(
+                lambda checked, name=plugin_name: self.run_plugin(name)
+            )
+            self.plugin_menu.addAction(action)
         self.plugin_toolbar = QToolBar("Plugin Toolbar")
         self.addToolBar(self.plugin_toolbar)
         reload_plugins_action = QAction("Reload Plugins", self)
@@ -135,7 +142,7 @@ class MainWindow(QMainWindow):
             return
 
         self.plugin_menu.clear()
-        self.plugins = {}
+        self.plugin_paths = {}
         requirements = []
 
         for plugin_name in os.listdir(plugin_dir):
@@ -148,9 +155,10 @@ class MainWindow(QMainWindow):
                             requirement = requirement.strip()
                             if requirement:
                                 requirements.append(requirement)
+
                 plugin_file_path = os.path.join(plugin_folder_path, "plugin.py")
                 if os.path.isfile(plugin_file_path):
-                    self.import_plugin(plugin_name, plugin_file_path)
+                    self.plugin_paths[plugin_name] = plugin_file_path
 
         if requirements:
             self.show_installation_dialog(requirements)
@@ -172,44 +180,53 @@ class MainWindow(QMainWindow):
             plugin_module = importlib.util.module_from_spec(spec)
             try:
                 spec.loader.exec_module(plugin_module)
-                plugin_instance = plugin_module.Plugin(self)
-                self.plugins[plugin_name] = plugin_instance
+                return plugin_module.Plugin(self, plugin_name)
 
-                # Connect signals here if needed
-                self.setup_plugin_connections(plugin_instance, plugin_name)
-
-                action = QAction(plugin_name, self)
-                action.triggered.connect(
-                    lambda checked, p=plugin_instance: self.run_plugin(p)
-                )
-                self.plugin_menu.addAction(action)
             except Exception as e:
                 traceback.print_exc()
                 QMessageBox.critical(
                     self, "Plugin Error", f"Failed to load plugin '{plugin_name}': {e}"
                 )
-                return
 
-    def run_plugin(self, plugin_instance):
-        try:
-            thread = QThread()
-            plugin_name = next(
-                (k for k, v in self.plugins.items() if v == plugin_instance), None
-            )
-            if not plugin_name:
-                QMessageBox.critical(self, "Plugin Error", "Failed to find plugin name")
-                return
+        return None
 
-            self.threads[plugin_name] = thread
-            plugin_instance.movevolume_utilsToThread(thread)
-            plugin_instance.finished.connect(thread.quit)
-            thread.started.connect(plugin_instance.execute)
-            thread.start()
-        except Exception as e:
-            traceback.print_exc()
+    def run_plugin(self, plugin_name):
+        plugin_path = self.plugin_paths.get(plugin_name)
+        if not plugin_path:
             QMessageBox.critical(
-                self, "Plugin Error", f"An error occurred while running the plugin: {e}"
+                self, "Plugin Error", f"Plugin '{plugin_name}' not found"
             )
+            return
+
+        plugin_instance = self.import_plugin(plugin_name, plugin_path)
+
+        if plugin_instance:
+            try:
+                thread = QThread()
+
+                self.threads[plugin_name] = thread
+                plugin_instance.moveToThread(thread)
+                self.setup_plugin_connections(plugin_instance, plugin_name)
+                thread.started.connect(plugin_instance.run)
+                thread.start()
+            except Exception as e:
+                traceback.print_exc()
+                QMessageBox.critical(
+                    self,
+                    "Plugin Error",
+                    f"An error occurred while running the plugin: {e}",
+                )
+
+    def cleanup_plugin(self, plugin_name, plugin_instance=None):
+        thread = self.threads.get(plugin_name)
+        if thread:
+            thread.quit()
+            thread.wait()
+            thread.deleteLater()
+            del self.threads[plugin_name]
+
+        if plugin_instance:
+            plugin_instance.deleteLater()
 
     def setup_plugin_connections(self, plugin_instance, plugin_name):
         """
@@ -222,9 +239,8 @@ class MainWindow(QMainWindow):
         Returns:
             None
         """
-        # Finished signal
-        plugin_instance.finished.connect(self.on_plugin_finished)
-        # Errir signal
+
+        # Error signal
         plugin_instance.error.connect(self.on_plugin_error)
         # Different progress signals - starting one and others
         plugin_instance.progress[int].connect(
@@ -236,26 +252,52 @@ class MainWindow(QMainWindow):
             )
         )
         # Signal to request GUI thread to prompt user for a file
-        plugin_instance.request_file_dialog.connect(self.on_file_request)
+        plugin_instance.request_gui_interaction.connect(self.on_gui_request)
+        thread = self.threads[plugin_name]
+        plugin_instance.moveToThread(thread)
+        plugin_instance.finished.connect(
+            lambda: self.cleanup_plugin(plugin_name, plugin_instance=plugin_instance)
+        )
+        plugin_instance.request_stop.connect(
+            lambda: self.cleanup_plugin(plugin_name, plugin_instance=plugin_instance)
+        )
 
     # Define the slots for the plugin signals
     def on_plugin_progress(
-        self, plugin_name, value, message=None, index=None, total=None
+        self,
+        plugin_name,
+        value,
+        message=None,
+        index=None,
+        total=None,  # Signals to receive the gui result
     ):
         if plugin_name not in self.progress_windows:
             self.progress_windows[plugin_name] = ProgressWindow(self)
         if not self.progress_windows[plugin_name].isVisible():
             self.progress_windows[plugin_name].show()
-        self.progress_windows[plugin_name].update_progress(value, message, index, total)
+        self.progress_windows[plugin_name].update_progress(
+            value,
+            message,
+            index,
+            (k for k, v in self.plugin_paths.items() if v == plugin_instance),
+            None,
+        )
 
-    def on_plugin_finished(self, result):
-        # Handle the result of the plugin's processing
-        pass
-
-    def on_plugin_error(self, error_message):
+    def on_plugin_error(self, error_message, plugin_name):
         # Handle any errors that occurred during the plugin's processing
+        traceback.print_exc()
         QMessageBox.critical(self, "Plugin Error", error_message)
+        self.cleanup_plugin(plugin_name)
 
-    def on_gui_request(self, caption):
-        file, _ = QFileDialog.getOpenFileName(self, caption)
-        self.sender().file_selected.emit(file)
+    def on_gui_request(self, callback, args, kwargs):
+        if callback:
+            if args and kwargs:
+                result = callback(*args, **kwargs)
+            elif args:
+                result = callback(*args)
+            elif kwargs:
+                result = callback(**kwargs)
+            else:
+                result = callback()
+
+        self.gui_response.emit(result)
