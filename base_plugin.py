@@ -6,7 +6,7 @@ from typing import *
 
 import zarr
 from PyQt6.QtCore import QEventLoop, QObject, pyqtSignal
-from PyQt6.QtWidgets import QFileDialog
+from PyQt6.QtWidgets import QFileDialog, QMessageBox
 from views.main_window import MainWindow
 from utils.gui_utils import virtual_sequence_bbox
 
@@ -162,3 +162,11 @@ class BasePlugin(QObject):
         ```
         """
         self.progress.emit(self, value, message, index, total)
+
+    def prompt_error(self, error_caption: str) -> None:
+        def error_callback(eror_caption: str) -> None:
+            QMessageBox.critical(
+                self.main_window, "Error", error_caption, QMessageBox.StandardButton.Ok
+            )
+
+        return self.request_gui(error_callback, error_caption=error_caption)

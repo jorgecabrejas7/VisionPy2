@@ -9,9 +9,12 @@ from PyQt6.QtWidgets import (
     QInputDialog,
     QFormLayout,
     QLineEdit,
+    QLabel,
+    QMainWindow,
 )
 from PyQt6.QtGui import QDoubleValidator, QIntValidator, QValidator
 from PyQt6.QtCore import QLocale
+from typing import Union
 
 
 def equalX(mat, bkg, ref_mat, ref_bkg):
@@ -28,8 +31,8 @@ def equalY(mat, bkg, ref_mat, ref_bkg, X):
     return Y
 
 
-def create_equalization_settings_dialog(parent):
-    def get_equalization_settings():
+def create_equalization_settings_dialog(parent: QMainWindow) -> callable:
+    def get_equalization_settings() -> dict[str, Union[float, int]]:
         class CustomDialog(QDialog):
             def __init__(self, parent=None):
                 super().__init__(parent)
@@ -95,13 +98,21 @@ def create_equalization_settings_dialog(parent):
                     self.accept()
 
             def validate_inputs(self):
-                if not self.validate_field(self.ref_mat_edit, "Reference material", float):
+                if not self.validate_field(
+                    self.ref_mat_edit, "Reference material", float
+                ):
                     return False
-                if not self.validate_field(self.ref_bkg_edit, "Reference background", float):
+                if not self.validate_field(
+                    self.ref_bkg_edit, "Reference background", float
+                ):
                     return False
-                if not self.validate_field(self.t_mat_edit, "Threshold material", float):
+                if not self.validate_field(
+                    self.t_mat_edit, "Threshold material", float
+                ):
                     return False
-                if not self.validate_field(self.t_bkg_edit, "Threshold background", float):
+                if not self.validate_field(
+                    self.t_bkg_edit, "Threshold background", float
+                ):
                     return False
                 if not self.validate_field(self.delta_edit, "Tolerance", float):
                     return False
@@ -116,9 +127,10 @@ def create_equalization_settings_dialog(parent):
                     data_type(field.text())
                     return True
                 except ValueError:
-                    QMessageBox.warning(self, "Input Error", f"Invalid input for {name}.")
+                    QMessageBox.warning(
+                        self, "Input Error", f"Invalid input for {name}."
+                    )
                     return False
-
 
             def show_info(self):
                 QMessageBox.information(
@@ -145,3 +157,47 @@ def create_equalization_settings_dialog(parent):
             return None
 
     return get_equalization_settings
+
+
+class VolumeModificationDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Volume Modification")
+        self.user_choice = None
+        self.initUI()
+
+    def initUI(self):
+        layout = QVBoxLayout(self)
+
+        label = QLabel(
+            "Do you want to duplicate the volume or apply changes directly to the volume on disk?"
+        )
+        layout.addWidget(label)
+
+        duplicate_button = QPushButton("Duplicate Volume")
+        duplicate_button.clicked.connect(self.duplicate_choice)
+        layout.addWidget(duplicate_button)
+
+        apply_button = QPushButton("Apply Directly")
+        apply_button.clicked.connect(self.apply_choice)
+        layout.addWidget(apply_button)
+
+    def duplicate_choice(self):
+        self.user_choice = "duplicate"
+        self.accept()
+
+    def apply_choice(self):
+        self.user_choice = "apply"
+        self.accept()
+
+    def exec(self):
+        super().exec()
+        return self.user_choice
+
+
+def create_file_settings_dialog(parent: QMainWindow):
+    def get_file_settings():
+        dialog = VolumeModificationDialog(parent)
+        return dialog.exec()
+
+    return get_file_settings
