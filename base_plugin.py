@@ -13,9 +13,9 @@ from utils.gui_utils import virtual_sequence_bbox
 
 class BasePlugin(QObject):
     finished = pyqtSignal(object)  # Signal to emit results or status
-    error = pyqtSignal(str)  # Signal to emit error messages
+    error = pyqtSignal(str, str)  # Signal to emit error messages: (error_message, plugin_name)
     progress = pyqtSignal(
-        [int], [int, str, int, int]
+        int, str, int, int
     )  # Signal to emit progress updates
 
     #  Signals for other GUI requests
@@ -161,12 +161,12 @@ class BasePlugin(QObject):
         self.update_progress(50, "Processing...")
         ```
         """
-        self.progress.emit(self, value, message, index, total)
+        self.progress.emit(value, message, index, total)
 
     def prompt_error(self, error_caption: str) -> None:
-        def error_callback(eror_caption: str) -> None:
+        def error_callback(caption: str) -> None:
             QMessageBox.critical(
-                self.main_window, "Error", error_caption, QMessageBox.StandardButton.Ok
+                self.main_window, "Error", caption, QMessageBox.StandardButton.Ok
             )
 
-        return self.request_gui(error_callback, error_caption=error_caption)
+        return self.request_gui(error_callback, caption=error_caption)

@@ -37,3 +37,28 @@ def f32_to_uint16(float_image: np.ndarray, do_scaling: bool = True) -> np.ndarra
 
     return short_image
     
+def convert_to_8bit(image, min_val=None, max_val=None):
+    """
+    Converts an image to 8-bit by scaling from the min-max range to 0-255.
+
+    Args:
+        image (np.ndarray): The input image.
+        min_val (float, optional): Minimum value for scaling. If None, image's min is used.
+        max_val (float, optional): Maximum value for scaling. If None, image's max is used.
+
+    Returns:
+        np.ndarray: The converted 8-bit image.
+    """
+    # If min_val or max_val are not provided, use the image's min and max
+    if min_val is None:
+        min_val = np.min(image)
+    if max_val is None:
+        max_val = np.max(image)
+
+    # Avoid division by zero
+    if min_val == max_val:
+        return np.zeros(image.shape, dtype=np.uint8)
+
+    # Scale and convert to 8-bit
+    scaled_image = (image - min_val) / (max_val - min_val) * 255
+    return np.clip(scaled_image, 0, 255).astype(np.uint8)

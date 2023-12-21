@@ -44,7 +44,7 @@ def read_sequence(folder_path):
     return tiff_sequence.asarray(ioworkers=5)
 
 
-def read_virtual_sequence(folder_path: str) -> zarr.Array:
+def read_virtual_sequence(folder_path: str, mode: str = "r") -> zarr.Array:
     """
     Read a sequence of TIFF files in a folder as a 3D volume.
 
@@ -78,4 +78,4 @@ def read_virtual_sequence(folder_path: str) -> zarr.Array:
     # This enables lazy-loading of image slices, reducing memory usage for large datasets
     volume_as_zarr = tiff_sequence.aszarr()
 
-    return zarr.open(volume_as_zarr)
+    return zarr.open(volume_as_zarr, mode=mode)

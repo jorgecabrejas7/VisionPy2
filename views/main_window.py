@@ -244,10 +244,7 @@ class MainWindow(QMainWindow):
         # Error signal
         plugin_instance.error.connect(self.on_plugin_error)
         # Different progress signals - starting one and others
-        plugin_instance.progress[int].connect(
-            lambda value: self.on_plugin_progress(plugin_name, value)
-        )
-        plugin_instance.progress[int, str, int, int].connect(
+        plugin_instance.progress.connect(
             lambda value, message, index, total: self.on_plugin_progress(
                 plugin_name, value, message, index, total
             )
@@ -280,7 +277,6 @@ class MainWindow(QMainWindow):
             value,
             message,
             index,
-            message,
             total,
         )
 
@@ -291,14 +287,19 @@ class MainWindow(QMainWindow):
         self.cleanup_plugin(plugin_name)
 
     def on_gui_request(self, callback, args, kwargs):
-        if callback:
-            if args and kwargs:
-                result = callback(*args, **kwargs)
-            elif args:
-                result = callback(*args)
-            elif kwargs:
-                result = callback(**kwargs)
-            else:
-                result = callback()
+        try:
+            if callback:
+                if args and kwargs:
+                    result = callback(*args, **kwargs)
+                elif args:
+                    result = callback(*args)
+                elif kwargs:
+                    result = callback(**kwargs)
+                else:
+                    result = callback()
 
-        self.gui_response.emit(result)
+            self.gui_response.emit(result)
+        except Exception as e:
+            traceback.print_exc()
+            self.gui_response.emit(None)
+            

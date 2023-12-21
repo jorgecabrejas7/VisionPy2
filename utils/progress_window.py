@@ -36,6 +36,7 @@ class ProgressWindow(QDialog):
         """
         super().__init__(parent)
         self.setWindowTitle("Progress")
+        self.app = QApplication.instance()
         self.setGeometry(300, 300, 400, 100)
         self.layout = QVBoxLayout(self)
         self.progress_bar = QProgressBar(self)
@@ -84,3 +85,5 @@ class ProgressWindow(QDialog):
                 self.time_label.setText("Estimated time remaining: Calculating...")
 
         self.app.processEvents()
+        if value == 100:
+            self.close()

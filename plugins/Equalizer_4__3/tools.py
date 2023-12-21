@@ -16,19 +16,29 @@ from PyQt6.QtGui import QDoubleValidator, QIntValidator, QValidator
 from PyQt6.QtCore import QLocale
 from typing import Union
 
-
 def equalX(mat, bkg, ref_mat, ref_bkg):
+    # Computing intermediate value E3
     E3 = (mat - bkg) / (ref_mat - ref_bkg)
+    # Calculating X
     X = bkg - ref_bkg * E3
+    # Rounding off the result
     X = round(X)
+
     return X
 
 
-def equalY(mat, bkg, ref_mat, ref_bkg, X):
+
+
+def equalY(mat, bkg, ref_mat, ref_bkg):
+    # Computing intermediate value E3
     E3 = (mat - bkg) / (ref_mat - ref_bkg)
+    # Calculating Y
     Y = bkg + E3 * (255 - ref_bkg)
+    # Rounding off the result
     Y = round(Y)
+
     return Y
+
 
 
 def create_equalization_settings_dialog(parent: QMainWindow) -> callable:
@@ -49,38 +59,46 @@ def create_equalization_settings_dialog(parent: QMainWindow) -> callable:
                 double_validator.setLocale(
                     QLocale(QLocale.Language.English, QLocale.Country.UnitedStates)
                 )
-                self.ref_mat_edit = QLineEdit()
+                self.ref_mat_edit = QLineEdit("210")
                 self.ref_mat_edit.setValidator(double_validator)
                 form_layout.addRow("Reference material:", self.ref_mat_edit)
 
-                self.ref_bkg_edit = QLineEdit()
+                self.ref_bkg_edit = QLineEdit("50")
                 self.ref_bkg_edit.setValidator(double_validator)
                 form_layout.addRow("Reference background:", self.ref_bkg_edit)
 
-                self.t_mat_edit = QLineEdit()
+                self.t_mat_edit = QLineEdit("0.3")
                 self.t_mat_edit.setValidator(double_validator)
                 form_layout.addRow("Threshold material:", self.t_mat_edit)
 
-                self.t_bkg_edit = QLineEdit()
+                self.t_bkg_edit = QLineEdit("0.55")
                 self.t_bkg_edit.setValidator(double_validator)
                 form_layout.addRow("Threshold background:", self.t_bkg_edit)
 
-                self.delta_edit = QLineEdit()
+                self.delta_edit = QLineEdit("0.7")
                 self.delta_edit.setValidator(double_validator)
                 form_layout.addRow("Tolerance:", self.delta_edit)
 
-                self.start_slice_edit = QLineEdit()
+                self.max_it = QLineEdit("10")
+                self.max_it.setValidator(QIntValidator())
+                form_layout.addRow("Max iterations/slice:", self.max_it)
+
+                self.start_slice_edit = QLineEdit("1")
                 self.start_slice_edit.setValidator(QIntValidator())
                 form_layout.addRow("Start slice:", self.start_slice_edit)
 
-                self.end_slice_edit = QLineEdit()
+                
+
+                self.end_slice_edit = QLineEdit("4425")
                 self.end_slice_edit.setValidator(QIntValidator())
                 form_layout.addRow("End slice::", self.end_slice_edit)
 
                 self.fix_bkg_ROI_check = QCheckBox("Fixed Background ROI")
+                self.fix_bkg_ROI_check.setChecked(True)
                 form_layout.addRow(self.fix_bkg_ROI_check)
 
                 self.fix_mat_ROI_check = QCheckBox("Fixed Material ROI")
+                self.fix_mat_ROI_check.setChecked(True)
                 form_layout.addRow(self.fix_mat_ROI_check)
 
                 layout.addLayout(form_layout)
@@ -116,6 +134,8 @@ def create_equalization_settings_dialog(parent: QMainWindow) -> callable:
                     return False
                 if not self.validate_field(self.delta_edit, "Tolerance", float):
                     return False
+                if not self.validate_field(self.max_it, "Max iterations/slice", int):
+                    return False
                 if not self.validate_field(self.start_slice_edit, "Start slice", int):
                     return False
                 if not self.validate_field(self.end_slice_edit, "End slice", int):
@@ -144,6 +164,7 @@ def create_equalization_settings_dialog(parent: QMainWindow) -> callable:
                     "t_mat": float(self.t_mat_edit.text()),
                     "t_bkg": float(self.t_bkg_edit.text()),
                     "delta": float(self.delta_edit.text()),
+                    "max_it": int(self.max_it.text()),
                     "start_slice": int(self.start_slice_edit.text()),
                     "end_slice": int(self.end_slice_edit.text()),
                     "fix_bkg_ROI": self.fix_bkg_ROI_check.isChecked(),
