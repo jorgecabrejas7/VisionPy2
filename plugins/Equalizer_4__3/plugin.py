@@ -23,6 +23,7 @@ class Plugin(BasePlugin):
         super().__init__(main_window, plugin_name)
 
     def execute(self):
+        # Update the function to integrate with dask for parallel processing
         try:
             start = time.time()
             """
