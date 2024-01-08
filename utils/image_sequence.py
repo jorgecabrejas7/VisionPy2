@@ -45,7 +45,7 @@ def read_sequence(folder_path):
     return tiff_sequence.asarray(ioworkers=5)
 
 
-def read_virtual_sequence(folder_path: str, mode: str = "r", chunkmode: int = tifffile.CHUNKMODE.PAGE) -> zarr.Array:
+def read_virtual_sequence(folder_path: str, mode: str = "r", chunkmode: int = tifffile.CHUNKMODE.FILE) -> zarr.Array:
     """
     Read a sequence of TIFF files in a folder as a 3D volume.
 
