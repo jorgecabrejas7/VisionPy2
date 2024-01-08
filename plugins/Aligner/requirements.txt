@@ -1,0 +1,7 @@
+tifffile[all]
+numpy
+matplotlib
+Pillow
+scipy
+scikit-image
+pathlib

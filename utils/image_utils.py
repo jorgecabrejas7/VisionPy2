@@ -19,7 +19,7 @@ def read_tif(path: str = None):
     return tifffile.TiffFile(path).asarray()
 
 
-def read_virtual_tif(path: str = None):
+def read_virtual_tif(path: str = None, chunkmode: int = tifffile.CHUNKMODE.PAGE):
     """
     Read a virtual TIF file and return it as a zarr array.
 
@@ -29,7 +29,7 @@ def read_virtual_tif(path: str = None):
     Returns:
         zarr.core.Array: The zarr array representing the virtual TIF file.
     """
-    return zarr.open(tifffile.TiffFile(path).aszarr())
+    return zarr.open(tifffile.TiffFile(path).aszarr(chunkmode=chunkmode))
 
 
 def translate_image(image, dx, dy):

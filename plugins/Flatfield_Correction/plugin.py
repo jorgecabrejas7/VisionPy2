@@ -1,8 +1,6 @@
 # plugins/Flatfield%20Correction/plugin.py
 
 import os
-import sys
-import time
 import traceback
 from pathlib import Path
 from typing import *
@@ -17,10 +15,8 @@ from pystackreg.util import to_uint16
 
 from base_plugin import BasePlugin
 from utils.bit_depth import f32_to_uint16
-from utils.gui_utils import virtual_sequence_bbox
 from utils.image_sequence import read_virtual_sequence
 from utils.image_utils import read_tif
-from utils.progress_window import ProgressWindow
 from utils.register import stackreg_translate
 
 
