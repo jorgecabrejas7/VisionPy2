@@ -7,6 +7,7 @@ import numpy as np
 import tifffile
 import zarr
 from PyQt6.QtWidgets import *
+from typing import List
 
 from utils.progress_window import ProgressWindow
 

@@ -29,24 +29,20 @@ class Plugin(BasePlugin):
         super().__init__(main_window, plugin_name)
 
     def execute(self):
-        folder = self.select_folder(caption="Folder testing")
-        if not folder:
-            self.prompt_error("No folder selected")
-            self.finished.emit(self)
-            return
-
-        file = self.select_file(caption="File testing")
-        if not file:
-            self.prompt_error("No file selected")
-            self.finished.emit(self)
-            return
         try:
+            folder = self.select_folder(caption="Select Folder to load volume")
+            if not folder:
+                self.prompt_error("No folder selected")
+                self.finished.emit(self)
+                return
+
             original_slice_names = sorted(
                 [file for file in os.listdir(folder) if file.endswith(".tif")]
             )
+
             volume = read_virtual_sequence(folder)
             slice_n, bbox = self.get_volume_bbox(volume)
-            print(f"{folder = } {file = } {slice_n = } {bbox = }")
+            print(f"{folder = } {slice_n = } {bbox = }")
             flatfield_path = self.select_file(caption="Select Flatfield image")
             ddm_path = self.select_file(caption="Select DDM image")
             flatfield = read_tif(flatfield_path)
@@ -110,14 +106,11 @@ class Plugin(BasePlugin):
             flatfield_copy[inverted_ddm] = flatfield[inverted_ddm]
 
             # Get folder to save the data
-            save_folder = QFileDialog.getExistingDirectory(
-                caption="Select Folder to Save Data"
-            )
+            save_folder = self.select_folder(caption="Select folder to save results")
 
             if not save_folder:
-                msg_box = QMessageBox(self.parent)
-                msg_box.setText("No folder selected.")
-                msg_box.exec_()
+                self.prompt_error("No folder selected")
+                self.finished.emit(self)
                 return
 
             num_slices = len(original_slice_names)
