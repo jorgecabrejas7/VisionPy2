@@ -2,6 +2,7 @@
 
 import os
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import *
 
@@ -111,32 +112,130 @@ class Plugin(BasePlugin):
                 self.finished.emit(self)
                 return
 
-            num_slices = len(original_slice_names)
-            for index, name in enumerate(original_slice_names):
-                self.update_progress(
-                    int(index / num_slices * 100),
-                    f"Processing slice {index + 1} of {num_slices}",
+            right_side = self.load_partial_volume(folder)
+
+            slice_idx = 50
+            original_slice = right_side[slice_idx]
+            # Resize the volume to only show each 100 slices, being able to visualize correctly and select the line
+            resized_slice = original_slice[:, ::100]
+            line_coords = self.request_gui(self.select_angle_line, resized_slice)
+            line_coords = [
+                (0, line_coords[0][1]),
+                (resized_slice.shape[1], line_coords[1][1]),
+            ]
+
+            dx = line_coords[1][0] - line_coords[0][0]
+            dy = line_coords[1][1] - line_coords[0][1]
+
+            # Calculate the angle in radians
+            angle_radians = np.arctan2(dy, dx)
+
+            # Determine the direction of the line
+            direction = "upwards" if dy < 0 else "downwards" if dy > 0 else "horizontal"
+
+            iterator = (
+                range(volume.shape[0])
+                if direction == "downwards"
+                else reversed(range(volume.shape[0]))
+            )
+
+            count = 0
+            for index in iterator:
+                self.correct_slice(
                     index,
-                    num_slices,
+                    count,
+                    volume,
+                    original_slice_names,
+                    flatfield_copy,
+                    angle_radians,
+                    save_folder,
                 )
-
-                _slice = volume[index]
-
-                # Perform element-wise division of _slice by flatfield_copy
-                result = np.divide(
-                    _slice.astype(np.float32),
-                    flatfield_copy.astype(np.float32),
-                    out=_slice.astype(np.float32),
-                    where=flatfield_copy.astype(np.float32) != 0.0,
-                )
-                # Convert the result to uint16 format with scaling
-                result = f32_to_uint16(result, do_scaling=True)
-
-                # Write result to disk as a TIFF file
-                tifffile.imwrite(os.path.join(save_folder, name), result)
-
         except Exception as e:
             traceback.print_exc()
             self.prompt_error(f"Error while running Flatfield Correction: {str(e)}")
             self.finished.emit(self)
             return
+
+    def load_partial_volume(self, folder):
+        files = sorted(
+            [
+                file
+                for file in os.listdir(folder)
+                if file.endswith(".tif") or file.endswith(".tiff")
+            ]
+        )
+
+        # Concurrently load each of the files as a numpy array that will later be stacked as a 3D volume
+
+        def load_file(file):
+            with tifffile.TiffFile(os.path.join(folder, file)) as tif:
+                array = tif.asarray(out="memmap")
+                new_width = array.shape[1] // 100
+                return array[
+                    :, array.shape[1] // 2 : array.shape[1] // 2 + new_width
+                ].copy()
+
+        with ThreadPoolExecutor() as executor:
+            arrays = list(executor.map(load_file, files))
+
+        volume = np.stack(arrays, axis=0)
+        return volume.transpose(2, 1, 0)
+
+    def select_angle_line(vol):
+        fig, ax = plt.subplots()
+        ax.imshow(vol, cmap="gray")
+        line_coords_resized = []
+
+        def on_click(event):
+            if fig.canvas.toolbar.mode == "":
+                # Store the x and y coordinates of the click event in the resized space
+                line_coords_resized.append((event.xdata, event.ydata))
+                if len(line_coords_resized) == 2:
+                    ax.plot(
+                        [line_coords_resized[0][0], line_coords_resized[1][0]],
+                        [line_coords_resized[0][1], line_coords_resized[1][1]],
+                        "r-",
+                    )
+                    fig.canvas.draw()
+                    fig.canvas.mpl_disconnect(cid)
+
+        cid = fig.canvas.mpl_connect("button_press_event", on_click)
+        plt.show()
+        return line_coords_resized
+
+    def correct_slice(
+        self,
+        index,
+        count,
+        volume,
+        original_slice_names,
+        flatfield_copy,
+        angle_radians,
+        save_folder,
+    ):
+        count += 1
+        self.update_progress(
+            int(index / volume.shape[0] * 100),
+            f"Processing slice {index + 1} of {volume.shape[0]}",
+            count,
+            volume.shape[0],
+        )
+        name = original_slice_names[index]
+        _slice = volume[index]
+
+        # Perform element-wise division of _slice by flatfield_copy
+        result = np.divide(
+            _slice.astype(np.float32),
+            flatfield_copy.astype(np.float32),
+            out=_slice.astype(np.float32),
+            where=flatfield_copy.astype(np.float32) != 0.0,
+        )
+
+        shift_size = math.ceil(2 * index * math.sin(angle_radians / 2))
+        shifted_slice = np.roll(_slice, -shift_size, axis=0)
+        # Convert the result to uint16 format with scaling
+
+        result = f32_to_uint16(shifted_slice, do_scaling=True)
+
+        # Write result to disk as a TIFF file
+        tifffile.imwrite(os.path.join(save_folder, name), result)
