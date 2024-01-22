@@ -273,12 +273,17 @@ class MainWindow(QMainWindow):
             self.progress_windows[plugin_name] = ProgressWindow(self)
         if not self.progress_windows[plugin_name].isVisible():
             self.progress_windows[plugin_name].show()
+
         self.progress_windows[plugin_name].update_progress(
             value,
             message,
             index,
             total,
         )
+
+        if value == 100:
+            self.progress_windows[plugin_name].close()
+            del self.progress_windows[plugin_name]
 
     def on_plugin_error(self, error_message, plugin_name):
         # Handle any errors that occurred during the plugin's processing
@@ -302,4 +307,3 @@ class MainWindow(QMainWindow):
         except Exception as e:
             traceback.print_exc()
             self.gui_response.emit(None)
-            

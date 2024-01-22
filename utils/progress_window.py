@@ -85,5 +85,3 @@ class ProgressWindow(QDialog):
                 self.time_label.setText("Estimated time remaining: Calculating...")
 
         self.app.processEvents()
-        if value == 100:
-            self.close()
