@@ -225,7 +225,7 @@ class Plugin(BasePlugin):
                     fig.canvas.mpl_disconnect(cid)
 
         cid = fig.canvas.mpl_connect("button_press_event", on_click)
-        plt.show()
+        plt.show(block=True)
         return line_coords_resized
 
 
