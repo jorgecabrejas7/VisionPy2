@@ -5,11 +5,15 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import *
+import math
+import logging
 
 import cv2
+import dask.array as da
 import matplotlib.pyplot as plt
 import numpy as np
 import tifffile
+from dask import compute, delayed
 from PyQt6.QtCore import *
 from PyQt6.QtWidgets import *
 from pystackreg.util import to_uint16
@@ -114,7 +118,7 @@ class Plugin(BasePlugin):
 
             right_side = self.load_partial_volume(folder)
 
-            slice_idx = 50
+            slice_idx = right_side.shape[0] // 2
             original_slice = right_side[slice_idx]
             # Resize the volume to only show each 100 slices, being able to visualize correctly and select the line
             resized_slice = original_slice[:, ::100]
@@ -132,16 +136,19 @@ class Plugin(BasePlugin):
 
             # Determine the direction of the line
             direction = "upwards" if dy < 0 else "downwards" if dy > 0 else "horizontal"
-
+            logging.info("we get here")
+            volume = da.from_array(volume, chunks=(1, 1024, 1024))
             iterator = (
                 range(volume.shape[0])
                 if direction == "downwards"
                 else reversed(range(volume.shape[0]))
             )
-
+            self.request_gui(print, "And here")
+            tasks = []
             count = 0
             for index in iterator:
-                self.correct_slice(
+                task = delayed(correct_slice)(
+                    self,
                     index,
                     count,
                     volume,
@@ -150,6 +157,20 @@ class Plugin(BasePlugin):
                     angle_radians,
                     save_folder,
                 )
+                tasks.append(task)
+            logging.info("And here too")
+            results = compute(*tasks, scheduler="threads")
+            logging.info(tasks)
+            logging.info(results)
+            for result in results:
+                self.update_progress(
+                    int(result / volume.shape[0] * 100),
+                    f"Processing slice {index + 1} of {volume.shape[0]}",
+                    result,
+                    volume.shape[0],
+                )
+                self.request_gui(print, result)
+
         except Exception as e:
             traceback.print_exc()
             self.prompt_error(f"Error while running Flatfield Correction: {str(e)}")
@@ -164,24 +185,28 @@ class Plugin(BasePlugin):
                 if file.endswith(".tif") or file.endswith(".tiff")
             ]
         )
+        index_files = enumerate(files)
 
         # Concurrently load each of the files as a numpy array that will later be stacked as a 3D volume
 
-        def load_file(file):
+        def load_file(tup):
+            index, file = tup
             with tifffile.TiffFile(os.path.join(folder, file)) as tif:
                 array = tif.asarray(out="memmap")
                 new_width = array.shape[1] // 100
+                if index % 100 == 0:
+                    logging.info(f"Loading partial volume - {file = }")
                 return array[
                     :, array.shape[1] // 2 : array.shape[1] // 2 + new_width
                 ].copy()
 
         with ThreadPoolExecutor() as executor:
-            arrays = list(executor.map(load_file, files))
-
+            arrays = list(executor.map(load_file, index_files))
+        logging.info("Finished loading partial volume")
         volume = np.stack(arrays, axis=0)
         return volume.transpose(2, 1, 0)
 
-    def select_angle_line(vol):
+    def select_angle_line(self, vol):
         fig, ax = plt.subplots()
         ax.imshow(vol, cmap="gray")
         line_coords_resized = []
@@ -203,39 +228,34 @@ class Plugin(BasePlugin):
         plt.show()
         return line_coords_resized
 
-    def correct_slice(
-        self,
-        index,
-        count,
-        volume,
-        original_slice_names,
-        flatfield_copy,
-        angle_radians,
-        save_folder,
-    ):
-        count += 1
-        self.update_progress(
-            int(index / volume.shape[0] * 100),
-            f"Processing slice {index + 1} of {volume.shape[0]}",
-            count,
-            volume.shape[0],
-        )
-        name = original_slice_names[index]
-        _slice = volume[index]
 
-        # Perform element-wise division of _slice by flatfield_copy
-        result = np.divide(
-            _slice.astype(np.float32),
-            flatfield_copy.astype(np.float32),
-            out=_slice.astype(np.float32),
-            where=flatfield_copy.astype(np.float32) != 0.0,
-        )
+def correct_slice(
+    index,
+    count,
+    volume,
+    original_slice_names,
+    flatfield_copy,
+    angle_radians,
+    save_folder,
+):
+    count += 1
+    name = original_slice_names[index]
+    _slice = volume[index]
 
-        shift_size = math.ceil(2 * index * math.sin(angle_radians / 2))
-        shifted_slice = np.roll(_slice, -shift_size, axis=0)
-        # Convert the result to uint16 format with scaling
+    # Perform element-wise division of _slice by flatfield_copy
+    result = np.divide(
+        _slice.astype(np.float32),
+        flatfield_copy.astype(np.float32),
+        out=_slice.astype(np.float32),
+        where=flatfield_copy.astype(np.float32) != 0.0,
+    )
 
-        result = f32_to_uint16(shifted_slice, do_scaling=True)
+    shift_size = math.ceil(2 * index * math.sin(angle_radians / 2))
+    shifted_slice = np.roll(_slice, -shift_size, axis=0)
+    # Convert the result to uint16 format with scaling
 
-        # Write result to disk as a TIFF file
-        tifffile.imwrite(os.path.join(save_folder, name), result)
+    result = f32_to_uint16(shifted_slice, do_scaling=True)
+
+    # Write result to disk as a TIFF file
+    tifffile.imwrite(os.path.join(save_folder, name), result)
+    return count

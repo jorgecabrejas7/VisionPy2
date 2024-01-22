@@ -1,10 +1,17 @@
 # /main.py
 
 import sys
+import logging
 from PyQt6.QtWidgets import QApplication
 from views.main_window import MainWindow
 
 def main():
+    logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(threadName)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+    )
+
     app = QApplication(sys.argv)
     main_view = MainWindow()
     main_view.show()

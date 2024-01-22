@@ -115,4 +115,17 @@ def virtual_sequence_bbox(zarr_array: zarr.Array) -> Tuple[int, List[int]]:
 
     slider.on_changed(lambda val: update_slice(val, img))
 
+    def key_press(event):
+        """Handle key press events to navigate through slices."""
+        global current_slice
+        if event.key == 'left':
+            current_slice = max(current_slice - 1, 0)  # Ensure slice index doesn't go below 0
+        elif event.key == 'right':
+            current_slice = min(current_slice + 1, len(zarr_array) - 1)  # Ensure slice index doesn't exceed the maximum
+        slider.set_val(current_slice)  # Update the slider
+        update_slice(current_slice, img)  # Update the displayed slice
+
+    # Connect the key press event handler
+    fig.canvas.mpl_connect('key_press_event', key_press)
+
     return capture_bbox_and_return()

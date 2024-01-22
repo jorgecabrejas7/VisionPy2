@@ -7,3 +7,4 @@ matplotlib
 Pillow
 scipy
 pystackreg
+dask[complete]
