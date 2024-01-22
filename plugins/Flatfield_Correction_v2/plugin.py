@@ -123,6 +123,7 @@ class Plugin(BasePlugin):
             # Resize the volume to only show each 100 slices, being able to visualize correctly and select the line
             resized_slice = original_slice[:, ::100]
             line_coords = self.request_gui(self.select_angle_line, resized_slice)
+            print(line_coords)
             line_coords = [
                 (0, line_coords[0][1]),
                 (resized_slice.shape[1], line_coords[1][1]),
