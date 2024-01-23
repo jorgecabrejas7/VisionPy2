@@ -10,6 +10,7 @@ import logging
 
 import cv2
 import dask.array as da
+from dask.diagnostics import ProgressBar
 import matplotlib.pyplot as plt
 import numpy as np
 import tifffile
@@ -122,7 +123,7 @@ class Plugin(BasePlugin):
             original_slice = right_side[slice_idx]
             # Resize the volume to only show each 100 slices, being able to visualize correctly and select the line
             resized_slice = original_slice[:, ::100]
-            line_coords = self.request_gui(self.select_angle_line, resized_slice)
+            line_coords = self.request_gui(select_angle_line, resized_slice)
             print(line_coords)
             line_coords = [
                 (0, line_coords[0][1]),
@@ -144,10 +145,10 @@ class Plugin(BasePlugin):
                 if direction == "downwards"
                 else reversed(range(volume.shape[0]))
             )
-            self.request_gui(print, "And here")
             tasks = []
             count = 0
             for index in iterator:
+                logging.info(f"Appending task {index}")
                 task = delayed(correct_slice)(
                     self,
                     index,
@@ -160,7 +161,8 @@ class Plugin(BasePlugin):
                 )
                 tasks.append(task)
             logging.info("And here too")
-            results = compute(*tasks, scheduler="threads")
+            with ProgressBar():
+                results = compute(*tasks, scheduler="threads")
             logging.info(tasks)
             logging.info(results)
             for result in results:
@@ -207,27 +209,61 @@ class Plugin(BasePlugin):
         volume = np.stack(arrays, axis=0)
         return volume.transpose(2, 1, 0)
 
-    def select_angle_line(self, vol):
-        fig, ax = plt.subplots()
-        ax.imshow(vol, cmap="gray")
-        line_coords_resized = []
 
-        def on_click(event):
-            if fig.canvas.toolbar.mode == "":
-                # Store the x and y coordinates of the click event in the resized space
+def select_angle_line(vol):
+    fig, ax = plt.subplots()
+    ax.imshow(vol, cmap="gray")
+    line_coords_resized = None  # Initialize to None to store only the last line
+    current_line = None  # To store the current line object for removal if a new line is drawn
+
+    def on_click(event):
+        nonlocal line_coords_resized, current_line
+        if fig.canvas.toolbar.mode == "":
+            if line_coords_resized is None:
+                # If no point is selected yet, store the first point
+                line_coords_resized = [(event.xdata, event.ydata)]
+            elif len(line_coords_resized) == 1:
+                # Store the second point and draw the line
                 line_coords_resized.append((event.xdata, event.ydata))
-                if len(line_coords_resized) == 2:
-                    ax.plot(
-                        [line_coords_resized[0][0], line_coords_resized[1][0]],
-                        [line_coords_resized[0][1], line_coords_resized[1][1]],
-                        "r-",
-                    )
-                    fig.canvas.draw()
-                    fig.canvas.mpl_disconnect(cid)
+                if current_line:
+                    current_line.remove()
+                current_line, = ax.plot(
+                    [line_coords_resized[0][0], line_coords_resized[1][0]],
+                    [line_coords_resized[0][1], line_coords_resized[1][1]],
+                    "r-",
+                )
+                fig.canvas.draw()
+            else:
+                # If a line is already drawn, reset the first point
+                line_coords_resized = [(event.xdata, event.ydata)]
 
-        cid = fig.canvas.mpl_connect("button_press_event", on_click)
-        plt.show(block=True)
+    def capture_line_and_return():
+        dlg = QDialog()
+        dlg.setWindowTitle("Confirm Line Selection")
+        layout = QVBoxLayout()
+
+        line_label = QLabel("Select a line by clicking two points on the image.")
+        layout.addWidget(line_label)
+
+        if line_coords_resized and len(line_coords_resized) == 2:
+            line_text = f"Selected Line: Start({line_coords_resized[0]}), End({line_coords_resized[1]})"
+            line_label.setText(line_text)
+
+        ok_button = QPushButton("OK", dlg)
+        ok_button.clicked.connect(lambda: (dlg.accept(), plt.close(fig)))
+        layout.addWidget(ok_button)
+
+        dlg.setLayout(layout)
+        dlg.show()
+        plt.show(block=False)
+        dlg.exec()
+
         return line_coords_resized
+
+    cid = fig.canvas.mpl_connect("button_press_event", on_click)
+    line_coords = capture_line_and_return()
+    fig.canvas.mpl_disconnect(cid)
+    return line_coords
 
 
 def correct_slice(
@@ -242,7 +278,7 @@ def correct_slice(
     count += 1
     name = original_slice_names[index]
     _slice = volume[index]
-
+    logging.info(f"Correcting slice {index}")
     # Perform element-wise division of _slice by flatfield_copy
     result = np.divide(
         _slice.astype(np.float32),
@@ -250,13 +286,13 @@ def correct_slice(
         out=_slice.astype(np.float32),
         where=flatfield_copy.astype(np.float32) != 0.0,
     )
-
+    
     shift_size = math.ceil(2 * index * math.sin(angle_radians / 2))
     shifted_slice = np.roll(_slice, -shift_size, axis=0)
     # Convert the result to uint16 format with scaling
 
     result = f32_to_uint16(shifted_slice, do_scaling=True)
-
+    logging.info(f"Flatfield corrected in {index}")
     # Write result to disk as a TIFF file
     tifffile.imwrite(os.path.join(save_folder, name), result)
     return count

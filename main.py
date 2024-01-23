@@ -2,8 +2,11 @@
 
 import sys
 import logging
+
+import matplotlib
 from PyQt6.QtWidgets import QApplication
 from views.main_window import MainWindow
+matplotlib.use("QtAgg")
 
 def main():
     logging.basicConfig(
