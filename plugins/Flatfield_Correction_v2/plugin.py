@@ -1,23 +1,23 @@
 # plugins/Flatfield%20Correction/plugin.py
-
+import logging
+import math
 import os
 import traceback
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
-from typing import *
-import math
-import logging
+from typing import Any, List
 
 import cv2
 import dask.array as da
-from dask.diagnostics import ProgressBar
 import matplotlib.pyplot as plt
 import numpy as np
 import tifffile
 from dask import compute, delayed
+from dask.diagnostics import ProgressBar
 from PyQt6.QtCore import *
 from PyQt6.QtWidgets import *
 from pystackreg.util import to_uint16
+import threading
+import queue
 
 from base_plugin import BasePlugin
 from utils.bit_depth import f32_to_uint16
@@ -25,10 +25,13 @@ from utils.image_sequence import read_virtual_sequence
 from utils.image_utils import read_tif
 from utils.register import stackreg_translate
 
-
 class Plugin(BasePlugin):
     def __init__(self, main_window, plugin_name):
         super().__init__(main_window, plugin_name)
+        self.processing_queue = queue.Queue()
+        self.saving_queue = queue.Queue()
+        self.total_slices = 0
+        self.stop_event = threading.Event()
 
     def execute(self):
         try:
@@ -42,8 +45,9 @@ class Plugin(BasePlugin):
                 [file for file in os.listdir(folder) if file.endswith(".tif")]
             )
 
-            volume = read_virtual_sequence(folder)
-            slice_n, bbox = self.get_volume_bbox(volume)
+            self.volume = read_virtual_sequence(folder)
+            self.n_slices = self.volume.shape[0]
+            slice_n, bbox = self.get_volume_bbox(self.volume)
             print(f"{folder = } {slice_n = } {bbox = }")
             flatfield_path = self.select_file(caption="Select Flatfield image")
             ddm_path = self.select_file(caption="Select DDM image")
@@ -96,7 +100,7 @@ class Plugin(BasePlugin):
 
             x1, y1, x2, y2 = bbox
             flat_roi = flatfield_copy[y1:y2, x1:x2].copy()
-            vol_roi = np.array(volume[slice_n, y1:y2, x1:x2]).copy()
+            vol_roi = np.array(self.volume[slice_n, y1:y2, x1:x2]).copy()
 
             sr = stackreg_translate(vol_roi, flat_roi)
             # Apply the translation to the flatfield
@@ -108,11 +112,11 @@ class Plugin(BasePlugin):
             flatfield_copy[inverted_ddm] = flatfield[inverted_ddm]
 
             # Get folder to save the data
-            save_folder = self.select_folder(caption="Select folder to save results")
+            self.save_folder = self.select_folder(caption="Select folder to save results")
 
             # Add correction for loading partial volume (centered), transpose, show, check line, calculate angle and get everything inside the for loop  into a function and paralellize with dask
 
-            if not save_folder:
+            if not self.save_folder:
                 self.prompt_error("No folder selected")
                 self.finished.emit(self)
                 return
@@ -120,66 +124,89 @@ class Plugin(BasePlugin):
             right_side = self.load_partial_volume(folder)
 
             slice_idx = right_side.shape[0] // 2
-            original_slice = right_side[slice_idx]
-            # Resize the volume to only show each 100 slices, being able to visualize correctly and select the line
-            resized_slice = original_slice[:, ::100]
-            line_coords = self.request_gui(select_angle_line, resized_slice)
+            show_slice = right_side[slice_idx]
+            line_coords = self.request_gui(select_angle_line, show_slice)
             print(line_coords)
             line_coords = [
                 (0, line_coords[0][1]),
-                (resized_slice.shape[1], line_coords[1][1]),
+                (show_slice.shape[1], line_coords[1][1]),
             ]
 
             dx = line_coords[1][0] - line_coords[0][0]
             dy = line_coords[1][1] - line_coords[0][1]
 
             # Calculate the angle in radians
-            angle_radians = np.arctan2(dy, dx)
+            angle_radians = abs(np.arctan2(dy, dx))
+            logging.info(f"Correction angle -> {np.degrees(angle_radians)}")
 
             # Determine the direction of the line
-            direction = "upwards" if dy < 0 else "downwards" if dy > 0 else "horizontal"
-            logging.info("we get here")
-            volume = da.from_array(volume, chunks=(1, 1024, 1024))
-            iterator = (
-                range(volume.shape[0])
-                if direction == "downwards"
-                else reversed(range(volume.shape[0]))
-            )
-            tasks = []
-            count = 0
-            for index in iterator:
-                logging.info(f"Appending task {index}")
-                task = delayed(correct_slice)(
-                    self,
-                    index,
-                    count,
-                    volume,
-                    original_slice_names,
-                    flatfield_copy,
-                    angle_radians,
-                    save_folder,
-                )
-                tasks.append(task)
-            logging.info("And here too")
-            with ProgressBar():
-                results = compute(*tasks, scheduler="threads")
-            logging.info(tasks)
-            logging.info(results)
-            for result in results:
-                self.update_progress(
-                    int(result / volume.shape[0] * 100),
-                    f"Processing slice {index + 1} of {volume.shape[0]}",
-                    result,
-                    volume.shape[0],
-                )
-                self.request_gui(print, result)
+            self.direction = "upwards" if dy < 0 else "downwards" if dy > 0 else "horizontal"
+            iterator = range(self.volume.shape[0])
+                
 
+            num_processing_threads = 4
+
+            for _ in range(num_processing_threads):
+                processing_thread = threading.Thread(
+                    target=self.processing_worker, 
+                    args=(self.processing_queue, self.saving_queue, flatfield_copy, angle_radians, self.save_folder)
+                )
+                processing_thread.daemon = True
+                processing_thread.start()
+
+            # Start saving thread
+            saving_thread = threading.Thread(target=self.saving_worker, args=(self.saving_queue,))
+            saving_thread.daemon = True
+            saving_thread.start()
+
+            self.total_slices = len(original_slice_names) * 2
+            for index in iterator:
+                self.processing_queue.put((index, original_slice_names[index]))
+
+            self.processing_queue.join()
+            self.saving_queue.join()
+
+            self.stop_event.set()
+            
         except Exception as e:
             traceback.print_exc()
             self.prompt_error(f"Error while running Flatfield Correction: {str(e)}")
             self.finished.emit(self)
             return
 
+    def correct_slice(self, index, _slice, flatfield_copy, angle_radians):
+        """
+        Corrects a single slice based on the flatfield copy and the angle.
+        
+        Args:
+            index (int): The index of the slice in the volume.
+            _slice (np.array): The slice to be corrected.
+            flatfield_copy (np.array): The flatfield copy used for correction.
+            angle_radians (float): The angle in radians used for the shift calculation.
+        
+        Returns:
+            np.array: The corrected slice.
+        """
+        # Perform element-wise division of _slice by flatfield_copy
+        corrected_slice = np.divide(
+            _slice.astype(np.float32),
+            flatfield_copy.astype(np.float32),
+            out=np.zeros_like(_slice, dtype=np.float32),
+            where=flatfield_copy.astype(np.float32) != 0
+        )
+        
+        # Calculate the shift size based on the angle and apply it
+        correction_index = index if self.direction == "downwards" else self.n_slices - index
+        
+        shift_size = math.ceil(2 * correction_index * math.sin(angle_radians / 2))
+        shifted_slice = np.roll(corrected_slice, -shift_size, axis=0)
+        
+        # Convert the result to uint16 format with scaling
+        corrected_slice_uint16 = f32_to_uint16(shifted_slice, do_scaling=True)
+        logging.info(f"Flatfield corrected for slice {index} with shift = {shift_size} pixels")
+        
+        return corrected_slice_uint16
+    
     def load_partial_volume(self, folder):
         files = sorted(
             [
@@ -188,6 +215,7 @@ class Plugin(BasePlugin):
                 if file.endswith(".tif") or file.endswith(".tiff")
             ]
         )
+        files = files[::100]
         index_files = enumerate(files)
 
         # Concurrently load each of the files as a numpy array that will later be stacked as a 3D volume
@@ -208,8 +236,60 @@ class Plugin(BasePlugin):
         logging.info("Finished loading partial volume")
         volume = np.stack(arrays, axis=0)
         return volume.transpose(2, 1, 0)
+    
+    def processing_worker(self, processing_queue, saving_queue, flatfield_copy, angle_radians, save_folder):
+        while not self.stop_event.is_set():
+            try:
+                index, name = processing_queue.get(timeout=1)
+                
+                # Load the slice just before processing
+                slice_data = self.volume[index]
+                corrected_slice = self.correct_slice(index, slice_data, flatfield_copy, angle_radians)
+                del slice_data  # Free memory of the loaded slice
+                
+                saving_queue.put((index, corrected_slice, name))
+                processing_queue.task_done()
+                self.update_progress_after_processing(index)
+            except queue.Empty:
+                continue
+
+    def saving_worker(self, saving_queue):
+        while not self.stop_event.is_set():
+            try:
+                index, corrected_slice, name = saving_queue.get(timeout=1)  # Timeout to allow checking stop_event
+                self.save_slice(index, corrected_slice, name, self.save_folder)
+                saving_queue.task_done()
+                self.update_progress_after_saving(index)
+            except queue.Empty:
+                continue
+
+    def update_progress_after_processing(self, index):
+        # Update progress after processing
+        self.update_progress(
+            int((index * 100) / self.total_slices),
+            f"Processing slice {index + 1}",
+            index,
+            self.total_slices
+        )
+
+    def update_progress_after_saving(self, index):
+        # Update progress after saving
+        self.update_progress(
+            int((index * 100) / self.total_slices),
+            f"Processing slice {index + 1}",
+            index,
+            self.total_slices
+        )
 
 
+    def save_slice(self, index, corrected_slice, name, save_folder):
+        try:
+            save_path = os.path.join(save_folder, name)
+            tifffile.imwrite(save_path, corrected_slice)
+            # logging.info(f"Slice saved: {save_path}")
+        except Exception as e:
+            logging.error(f"Failed to save slice {index}: {e}")
+    
 def select_angle_line(vol):
     fig, ax = plt.subplots()
     ax.imshow(vol, cmap="gray")
@@ -266,33 +346,4 @@ def select_angle_line(vol):
     return line_coords
 
 
-def correct_slice(
-    index,
-    count,
-    volume,
-    original_slice_names,
-    flatfield_copy,
-    angle_radians,
-    save_folder,
-):
-    count += 1
-    name = original_slice_names[index]
-    _slice = volume[index]
-    logging.info(f"Correcting slice {index}")
-    # Perform element-wise division of _slice by flatfield_copy
-    result = np.divide(
-        _slice.astype(np.float32),
-        flatfield_copy.astype(np.float32),
-        out=_slice.astype(np.float32),
-        where=flatfield_copy.astype(np.float32) != 0.0,
-    )
-    
-    shift_size = math.ceil(2 * index * math.sin(angle_radians / 2))
-    shifted_slice = np.roll(_slice, -shift_size, axis=0)
-    # Convert the result to uint16 format with scaling
 
-    result = f32_to_uint16(shifted_slice, do_scaling=True)
-    logging.info(f"Flatfield corrected in {index}")
-    # Write result to disk as a TIFF file
-    tifffile.imwrite(os.path.join(save_folder, name), result)
-    return count
