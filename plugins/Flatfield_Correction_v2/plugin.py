@@ -203,7 +203,7 @@ class Plugin(BasePlugin):
         
         # Convert the result to uint16 format with scaling
         corrected_slice_uint16 = f32_to_uint16(shifted_slice, do_scaling=True)
-        logging.info(f"Flatfield corrected for slice {index} with shift = {shift_size} pixels")
+        logging.info(f"Flatfield corrected for slice {index} with shift = 2 x {correction_index} x sin({angle_radians} / 2) = {shift_size} pixels - Angle: {np.degrees(angle_radians)}")
         
         return corrected_slice_uint16
     
