@@ -8,15 +8,15 @@ import zarr
 from PyQt6.QtCore import QEventLoop, QObject, pyqtSignal
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
 from views.main_window import MainWindow
-from utils.gui_utils import virtual_sequence_bbox
+from utils.gui_utils import *
 
 
 class BasePlugin(QObject):
     finished = pyqtSignal(object)  # Signal to emit results or status
-    error = pyqtSignal(str, str)  # Signal to emit error messages: (error_message, plugin_name)
-    progress = pyqtSignal(
-        int, str, int, int
-    )  # Signal to emit progress updates
+    error = pyqtSignal(
+        str, str
+    )  # Signal to emit error messages: (error_message, plugin_name)
+    progress = pyqtSignal(int, str, int, int)  # Signal to emit progress updates
 
     #  Signals for other GUI requests
     request_gui_interaction = pyqtSignal(
@@ -142,6 +142,9 @@ class BasePlugin(QObject):
         Tuple[int, List[int]]: Tuple containing the index of the selected slice and the bounding box coordinates.
         """
         return self.request_gui(virtual_sequence_bbox, zarr_array=zarr_array)
+
+    def select_slice(self, zarr_array: zarr.Array) -> int:
+        return self.request_gui(virtual_sequence_slice, zarr_array=zarr_array)
 
     def update_progress(
         self, value: int, message: str, index: int = None, total: int = None

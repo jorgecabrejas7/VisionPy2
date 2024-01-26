@@ -129,7 +129,7 @@ class Plugin(BasePlugin):
             print(line_coords)
             line_coords = [
                 (0, line_coords[0][1]),
-                (show_slice.shape[1], line_coords[1][1]),
+                (self.volume.shape[0], line_coords[1][1]),
             ]
 
             dx = line_coords[1][0] - line_coords[0][0]
