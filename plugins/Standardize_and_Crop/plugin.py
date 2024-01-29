@@ -1,29 +1,31 @@
 # plugins/Flatfield%20Correction/plugin.py
 import logging
 import os
+import queue
+import threading
 import traceback
 
+import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import tifffile
+from skimage.exposure import rescale_intensity
 from PyQt6.QtCore import *
+from PyQt6.QtGui import QDoubleValidator
 from PyQt6.QtWidgets import *
 from PyQt6.QtWidgets import (
     QDialog,
-    QMessageBox,
-    QPushButton,
-    QVBoxLayout,
     QFormLayout,
     QLineEdit,
     QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
 )
-from PyQt6.QtGui import QDoubleValidator
-import threading
-import queue
 
 from base_plugin import BasePlugin
-from utils.image_sequence import read_virtual_sequence
 from utils.bit_depth import convert_to_8bit
+from utils.image_sequence import read_virtual_sequence
 
 
 class Plugin(BasePlugin):
@@ -68,7 +70,7 @@ class Plugin(BasePlugin):
                 return
 
             x1, y1, x2, y2 = bbox
-
+            # clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
             for i in range(self.n_slices):
                 # Read and crop the slice
                 slice = self.volume[i, y1:y2, x1:x2]
@@ -76,12 +78,14 @@ class Plugin(BasePlugin):
                     slice, target_mean=target_mean, target_std=target_std
                 )
                 slice_8bit = convert_to_8bit(standardized_slice)
+                eq_slice = np.empty_like(slice_8bit)
+                cv2.intensity_transform.autoscaling(slice_8bit, eq_slice)
                 # Save the cropped slice as a page in the TIFF file
                 tifffile.imwrite(
                     os.path.join(
                         self.save_folder, "cropped_" + original_slice_names[i]
                     ),
-                    slice_8bit,
+                    eq_slice,
                     imagej=True,
                     compression="ZLIB",
                 )
@@ -190,3 +194,54 @@ def create_equalization_settings_dialog(parent: QMainWindow) -> callable:
             return None
 
     return get_equalization_settings
+
+
+def bi_histogram_equalization(img):
+    # Calculate the histogram of the whole image
+    hist_full, bins = np.histogram(img.flatten(), 65536, [0, 65536])
+
+    # Calculate the median of the intensity values
+    median_val = np.median(img)
+
+    # Create masks for splitting the image into two parts
+    mask_low = img <= median_val
+    mask_high = img > median_val
+
+    # Calculate separate histograms for the low and high intensity parts of the image
+    hist_low, _ = np.histogram(img[mask_low], bins=65536, range=(0, 65536))
+    hist_high, _ = np.histogram(img[mask_high], bins=65536, range=(0, 65536))
+
+    # Calculate separate CDFs for the low and high histograms
+    cdf_low = hist_low.cumsum()
+    cdf_low = (cdf_low - cdf_low.min()) * 65535 / (cdf_low.max() - cdf_low.min())
+
+    cdf_high = hist_high.cumsum()
+    cdf_high = (cdf_high - cdf_high.min()) * 65535 / (
+        cdf_high.max() - cdf_high.min()
+    ) + cdf_low.max()
+
+    # Map the pixel values of the original image to the new image using the combined CDF
+    # Initialize the output image
+    img_equalized = np.zeros_like(img, dtype=np.uint16)
+
+    # Apply the mapping for low and high parts of the image
+    img_equalized[mask_low] = np.interp(img[mask_low], bins[:-1], cdf_low)
+    img_equalized[mask_high] = np.interp(img[mask_high], bins[:-1], cdf_high)
+
+    return img_equalized
+
+
+def piecewise_linear_transformation(
+    img, low_peak=25000, high_peak=65535 // 2, low_mapped=20000, high_mapped=40000
+):
+    # Define control points for piecewise linear transformation
+    original_values = [0, low_peak, high_peak, 65535]
+    target_values = [0, low_mapped, high_mapped, 65535]
+
+    # Perform the piecewise linear transformation
+    img_transformed = np.interp(img.flatten(), original_values, target_values)
+
+    # Reshape the 1D array back to a 2D image
+    img_transformed = img_transformed.reshape(img.shape)
+
+    return img_transformed.astype(np.uint16)
