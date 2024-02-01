@@ -30,7 +30,6 @@ class Plugin(BasePlugin):
         super().__init__(main_window, plugin_name)
         self.processing_queue = queue.Queue()
         self.saving_queue = queue.Queue()
-        self.total_slices = 0
         self.stop_event = threading.Event()
 
     def execute(self):
@@ -159,7 +158,6 @@ class Plugin(BasePlugin):
             saving_thread.daemon = True
             saving_thread.start()
 
-            self.total_slices = len(original_slice_names) * 2
             for index in iterator:
                 self.processing_queue.put((index, original_slice_names[index]))
 
@@ -249,7 +247,6 @@ class Plugin(BasePlugin):
                 
                 saving_queue.put((index, corrected_slice, name))
                 processing_queue.task_done()
-                self.update_progress_after_processing(index)
             except queue.Empty:
                 continue
 
@@ -263,22 +260,13 @@ class Plugin(BasePlugin):
             except queue.Empty:
                 continue
 
-    def update_progress_after_processing(self, index):
-        # Update progress after processing
-        self.update_progress(
-            int((index * 100) / self.total_slices),
-            f"Processing slice {index + 1}",
-            index,
-            self.total_slices
-        )
-
     def update_progress_after_saving(self, index):
         # Update progress after saving
         self.update_progress(
-            int((index * 100) / self.total_slices),
+            int((index * 100) / self.n_slices),
             f"Processing slice {index + 1}",
             index,
-            self.total_slices
+            self.n_slices
         )
 
 
