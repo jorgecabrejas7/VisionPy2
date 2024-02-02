@@ -9,6 +9,7 @@ from PyQt6.QtCore import QEventLoop, QObject, pyqtSignal
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
 from views.main_window import MainWindow
 from utils.gui_utils import *
+import uuid
 
 
 class BasePlugin(QObject):
@@ -34,12 +35,13 @@ class BasePlugin(QObject):
     """
 
     @abstractmethod
-    def __init__(self, main_window: MainWindow, plugin_name: str):
+    def __init__(self, main_window: MainWindow, plugin_name: str, uuid: uuid.UUID):
         super().__init__()
         self.gui_result: object = None
         self.main_window: MainWindow = main_window
         self.loop: QEventLoop = None
         self.name: str = plugin_name
+        self.uuid = uuid
 
     @abstractmethod
     def get_name(self):

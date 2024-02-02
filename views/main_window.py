@@ -3,8 +3,10 @@ import os
 import subprocess
 import sys
 import traceback
-
+import logging
 import pkg_resources
+import uuid
+
 from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
@@ -17,7 +19,6 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
 from utils.gui_utils import *
 from utils.progress_window import ProgressWindow
 
@@ -121,13 +122,6 @@ class MainWindow(QMainWindow):
     def init_ui(self):
         self.setWindowTitle("VisionPy")
         self.setGeometry(300, 300, 400, 100)
-        for plugin_name in self.plugin_paths:
-            display_name = plugin_name.replace("__", ".").replace("_", " ")
-            action = QAction(display_name, self)
-            action.triggered.connect(
-                lambda checked, name=plugin_name: self.run_plugin(name)
-            )
-            self.plugin_menu.addAction(action)
         self.plugin_toolbar = QToolBar("Plugin Toolbar")
         self.addToolBar(self.plugin_toolbar)
         reload_plugins_action = QAction("Reload Plugins", self)
@@ -138,6 +132,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(central_widget)
 
     def discover_plugins(self):
+        logging.info("Discovering plugins")
         plugin_dir = os.path.join(os.getcwd(), "plugins")
         if not os.path.exists(plugin_dir):
             return
@@ -145,7 +140,6 @@ class MainWindow(QMainWindow):
         self.plugin_menu.clear()
         self.plugin_paths = {}
         requirements = []
-
         for plugin_name in os.listdir(plugin_dir):
             plugin_folder_path = os.path.join(plugin_dir, plugin_name)
             if os.path.isdir(plugin_folder_path):
@@ -161,8 +155,17 @@ class MainWindow(QMainWindow):
                 if os.path.isfile(plugin_file_path):
                     self.plugin_paths[plugin_name] = plugin_file_path
 
+        for plugin_name in self.plugin_paths:
+            display_name = plugin_name.replace("__", ".").replace("_", " ")
+            action = QAction(display_name, self)
+            action.triggered.connect(
+                lambda checked, name=plugin_name: self.run_plugin(name)
+            )
+            self.plugin_menu.addAction(action)
+
         if requirements:
             self.show_installation_dialog(requirements)
+        
 
     def show_installation_dialog(self, requirements):
         dialog = ProgressDialog(len(requirements))
@@ -181,7 +184,8 @@ class MainWindow(QMainWindow):
             plugin_module = importlib.util.module_from_spec(spec)
             try:
                 spec.loader.exec_module(plugin_module)
-                return plugin_module.Plugin(self, plugin_name)
+                
+                return plugin_module.Plugin(self, plugin_name, uuid.uuid4())
 
             except Exception as e:
                 traceback.print_exc()
@@ -198,14 +202,16 @@ class MainWindow(QMainWindow):
                 self, "Plugin Error", f"Plugin '{plugin_name}' not found"
             )
             return
-
+        
         plugin_instance = self.import_plugin(plugin_name, plugin_path)
+        logging.info(f"Loaded plugin {plugin_name}")
 
         if plugin_instance:
             try:
+                logging.info(f"Sending plugin {plugin_name} with id {plugin_instance.uuid} to thread")
                 thread = QThread()
 
-                self.threads[plugin_name] = thread
+                self.threads[plugin_instance.uuid] = thread
                 plugin_instance.moveToThread(thread)
                 self.setup_plugin_connections(plugin_instance, plugin_name)
                 thread.started.connect(plugin_instance.run)
@@ -219,15 +225,22 @@ class MainWindow(QMainWindow):
                 )
 
     def cleanup_plugin(self, plugin_name, plugin_instance=None):
+        logging.info(f"Cleaning up {plugin_name}")
         thread = self.threads.get(plugin_name)
+        id = plugin_instance.uuid
         if thread:
             thread.quit()
             thread.wait()
             thread.deleteLater()
-            del self.threads[plugin_name]
+            del self.threads[id]
 
-        if plugin_instance:
-            plugin_instance.deleteLater()
+        try:
+
+            if plugin_instance:
+                plugin_instance.deleteLater()
+        except Exception:
+            logging.info(f"Plugin instance already deleted {plugin_name}")
+        logging.info(f"Cleaned {plugin_name}")
 
     def setup_plugin_connections(self, plugin_instance, plugin_name):
         """
@@ -251,7 +264,7 @@ class MainWindow(QMainWindow):
         )
         # Signal to request GUI thread to prompt user for a file
         plugin_instance.request_gui_interaction.connect(self.on_gui_request)
-        thread = self.threads[plugin_name]
+        thread = self.threads[plugin_instance.uuid]
         plugin_instance.moveToThread(thread)
         plugin_instance.finished.connect(
             lambda: self.cleanup_plugin(plugin_name, plugin_instance=plugin_instance)

@@ -26,8 +26,8 @@ from utils.image_utils import read_tif
 from utils.register import stackreg_translate
 
 class Plugin(BasePlugin):
-    def __init__(self, main_window, plugin_name):
-        super().__init__(main_window, plugin_name)
+    def __init__(self, main_window, plugin_name, uuid):
+        super().__init__(main_window, plugin_name, uuid)
         self.processing_queue = queue.Queue()
         self.saving_queue = queue.Queue()
         self.stop_event = threading.Event()
@@ -143,7 +143,8 @@ class Plugin(BasePlugin):
             iterator = range(self.volume.shape[0])
                 
 
-            num_processing_threads = 4
+            num_processing_threads = 6
+            num_saving_threads = 2
 
             for _ in range(num_processing_threads):
                 processing_thread = threading.Thread(
@@ -153,10 +154,11 @@ class Plugin(BasePlugin):
                 processing_thread.daemon = True
                 processing_thread.start()
 
-            # Start saving thread
-            saving_thread = threading.Thread(target=self.saving_worker, args=(self.saving_queue,))
-            saving_thread.daemon = True
-            saving_thread.start()
+            
+            for _ in range(num_saving_threads):
+                saving_thread = threading.Thread(target=self.saving_worker, args=(self.saving_queue,))
+                saving_thread.daemon = True
+                saving_thread.start()
 
             for index in iterator:
                 self.processing_queue.put((index, original_slice_names[index]))
