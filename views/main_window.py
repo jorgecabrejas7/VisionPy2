@@ -165,7 +165,6 @@ class MainWindow(QMainWindow):
 
         if requirements:
             self.show_installation_dialog(requirements)
-        
 
     def show_installation_dialog(self, requirements):
         dialog = ProgressDialog(len(requirements))
@@ -184,7 +183,7 @@ class MainWindow(QMainWindow):
             plugin_module = importlib.util.module_from_spec(spec)
             try:
                 spec.loader.exec_module(plugin_module)
-                
+
                 return plugin_module.Plugin(self, plugin_name, uuid.uuid4())
 
             except Exception as e:
@@ -202,13 +201,15 @@ class MainWindow(QMainWindow):
                 self, "Plugin Error", f"Plugin '{plugin_name}' not found"
             )
             return
-        
+
         plugin_instance = self.import_plugin(plugin_name, plugin_path)
         logging.info(f"Loaded plugin {plugin_name}")
 
         if plugin_instance:
             try:
-                logging.info(f"Sending plugin {plugin_name} with id {plugin_instance.uuid} to thread")
+                logging.info(
+                    f"Sending plugin {plugin_name} with id {plugin_instance.uuid} to thread"
+                )
                 thread = QThread()
 
                 self.threads[plugin_instance.uuid] = thread
@@ -216,6 +217,9 @@ class MainWindow(QMainWindow):
                 self.setup_plugin_connections(plugin_instance, plugin_name)
                 thread.started.connect(plugin_instance.run)
                 thread.start()
+                logging.info(
+                    f"Started plugin {plugin_name} with id {plugin_instance.uuid}"
+                )
             except Exception as e:
                 traceback.print_exc()
                 QMessageBox.critical(
@@ -235,7 +239,6 @@ class MainWindow(QMainWindow):
             del self.threads[id]
 
         try:
-
             if plugin_instance:
                 plugin_instance.deleteLater()
         except Exception:

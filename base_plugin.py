@@ -3,13 +3,15 @@
 import traceback
 from abc import abstractmethod
 from typing import *
+import uuid
+import sys
+import os
 
 import zarr
 from PyQt6.QtCore import QEventLoop, QObject, pyqtSignal
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
 from views.main_window import MainWindow
 from utils.gui_utils import *
-import uuid
 
 
 class BasePlugin(QObject):
@@ -125,7 +127,13 @@ class BasePlugin(QObject):
 
     def select_folder(self, caption: str = None):
         def callback(caption):
-            folder = QFileDialog.getExistingDirectory(self.main_window, caption=caption)
+            if sys.platform == "win32":
+                root_path = "C:\\"
+            else:
+                root_path = os.path.expanduser("~")
+            folder = QFileDialog.getExistingDirectory(
+                self.main_window, caption, root_path
+            )
             return folder
 
         return self.request_gui(
