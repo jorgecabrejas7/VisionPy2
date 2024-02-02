@@ -262,7 +262,7 @@ class MainWindow(QMainWindow):
         # Different progress signals - starting one and others
         plugin_instance.progress.connect(
             lambda value, message, index, total: self.on_plugin_progress(
-                plugin_name, value, message, index, total
+                plugin_instance.uuid, value, message, index, total
             )
         )
         # Signal to request GUI thread to prompt user for a file
@@ -279,18 +279,18 @@ class MainWindow(QMainWindow):
     # Define the slots for the plugin signals
     def on_plugin_progress(
         self,
-        plugin_name,
+        plugin_id,
         value,
         message=None,
         index=None,
         total=None,  # Signals to receive the gui result
     ):
-        if plugin_name not in self.progress_windows:
-            self.progress_windows[plugin_name] = ProgressWindow(self)
-        if not self.progress_windows[plugin_name].isVisible():
-            self.progress_windows[plugin_name].show()
+        if plugin_id not in self.progress_windows:
+            self.progress_windows[plugin_id] = ProgressWindow(self)
+        if not self.progress_windows[plugin_id].isVisible():
+            self.progress_windows[plugin_id].show()
 
-        self.progress_windows[plugin_name].update_progress(
+        self.progress_windows[plugin_id].update_progress(
             value,
             message,
             index,
@@ -298,8 +298,8 @@ class MainWindow(QMainWindow):
         )
 
         if value == 100:
-            self.progress_windows[plugin_name].close()
-            del self.progress_windows[plugin_name]
+            self.progress_windows[plugin_id].close()
+            del self.progress_windows[plugin_id]
 
     def on_plugin_error(self, error_message, plugin_name):
         # Handle any errors that occurred during the plugin's processing

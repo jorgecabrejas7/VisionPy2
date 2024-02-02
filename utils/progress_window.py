@@ -65,10 +65,9 @@ class ProgressWindow(QDialog):
         Example:
         update_progress(50, "Processing item 5 of 10", 5, 10)
         """
-    
 
         self.progress_bar.setValue(value)
-        if message: 
+        if message:
             self.progress_label.setText(message)
 
         # Calculate elapsed time and estimate total time
@@ -83,5 +82,3 @@ class ProgressWindow(QDialog):
                 self.time_label.setText(f"Estimated time remaining: {remaining_time}")
             else:
                 self.time_label.setText("Estimated time remaining: Calculating...")
-
-        self.app.processEvents()
