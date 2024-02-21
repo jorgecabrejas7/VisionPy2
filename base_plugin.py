@@ -110,6 +110,7 @@ class BasePlugin(QObject):
         self.loop.exec()
         # disconnect after the signal is received to allow other plugins to use the signal
         self.main_window.gui_response.disconnect(self.on_gui_response)
+        print("GUI result: ", self.gui_result)
         return self.gui_result
 
     def on_gui_response(self, result: object):
@@ -183,3 +184,13 @@ class BasePlugin(QObject):
             )
 
         return self.request_gui(error_callback, caption=error_caption)
+    
+    #create a function to prompt a message box with a message
+
+    def prompt_message(self, message_caption: str) -> None:
+        def message_callback(caption: str) -> None:
+            QMessageBox.information(
+                self.main_window, "Message", caption, QMessageBox.StandardButton.Ok
+            )
+
+        return self.request_gui(message_callback, caption=message_caption)
