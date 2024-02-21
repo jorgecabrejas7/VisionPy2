@@ -113,7 +113,7 @@ class Plugin(BasePlugin):
                     image_sequence.write_sequence2(save_path, os.path.basename(save_path), volume,progress_window=self)
                     
                     # Show a message box if the rotated volume is saved successfully, when the message box is closed, close all matplotlib figures
-                    self.prompt_message("The rotated volume is saved successfully.", "Volume Saved")
+                    self.prompt_message("The rotated volume is saved successfully.")
                     self.request_gui(plt.close, "all")
                 
                 else:
@@ -266,7 +266,7 @@ class Plugin(BasePlugin):
                     if not reslices['Left'] and reslices['Main']:
                         volume = np.transpose(volume, (2, 0, 1))
                 
-                top_threshold = self.request_gui(self.get_user_inputs, name, default_value=top_threshold)
+                top_threshold = self.get_user_inputs(name, default_value=top_threshold)
 
                 #Check if the threshold is valid by aplying it to the middle slice
                 if top_threshold != None:
