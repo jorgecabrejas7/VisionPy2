@@ -107,6 +107,8 @@ class Plugin(BasePlugin):
                     # Show a message box if the centered volume is saved successfully, when the message box is closed, close all matplotlib figures
                     self.prompt_message("Concatenated volume saved successfully.")
 
+                    self.update_progress(100, "Saving concatenated Volume",1,1)
+
 
 
                 
