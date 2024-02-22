@@ -3,7 +3,6 @@ from base_plugin import BasePlugin
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from utils import image_sequence
-from utils.progress_window import ProgressWindow
 from pathlib import Path
 import traceback
 import sys
@@ -79,6 +78,7 @@ class Plugin(BasePlugin):
                     print('The angles: ', angles)
                     angle = angles["Main"]
                     volume = self.rotate_volume_concurrent(volume, angle,progress_window=self)
+                    self.update_progress(100, "Rotating Volume from Main reslice")
                 
                 if reslices['Left']:
 
@@ -87,6 +87,7 @@ class Plugin(BasePlugin):
                     volume = np.transpose(volume, (2, 0, 1))
                     angle = angles["Left"]
                     volume = self.rotate_volume_concurrent(volume, angle,progress_window=self)
+                    self.update_progress(100, "Rotating Volume from Left reslice")
 
                     if not reslices['Top']:
                         volume = np.transpose(volume, (2, 0, 1))
@@ -101,6 +102,7 @@ class Plugin(BasePlugin):
                     volume = np.transpose(volume, (2, 0, 1))
                     angle = angles["Top"]
                     volume = self.rotate_volume_concurrent(volume, angle,progress_window=self)
+                    self.update_progress(100, "Rotating Volume from Top reslice")
 
                     volume = np.transpose(volume, (2, 0, 1))
 
@@ -115,6 +117,7 @@ class Plugin(BasePlugin):
                     # Show a message box if the rotated volume is saved successfully, when the message box is closed, close all matplotlib figures
                     self.prompt_message("The rotated volume is saved successfully.")
                     self.request_gui(plt.close, "all")
+                    self.update_progress(100, "Saving Rotated Volume",1,1)
                 
                 else:
                     # Show a message box if no folder is selected
