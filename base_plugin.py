@@ -125,6 +125,15 @@ class BasePlugin(QObject):
         return self.request_gui(
             callback, caption=caption if caption else "Select a file"
         )
+    
+    def select_save_file(self, caption: str = None):
+        def callback(caption):
+            file, _ = QFileDialog.getSaveFileName(self.main_window, caption=caption)
+            return file
+
+        return self.request_gui(
+            callback, caption=caption if caption else "Select a file"
+        )
 
     def select_folder(self, caption: str = None):
         def callback(caption):
@@ -194,3 +203,16 @@ class BasePlugin(QObject):
             )
 
         return self.request_gui(message_callback, caption=message_caption)
+
+    #Create a function to prompot a confirmation box with a message and yes and no buttons, return True if yes and False if no
+    def prompt_confirmation(self, message_caption: str) -> bool:
+        def confirmation_callback(caption: str) -> bool:
+            reply = QMessageBox.question(
+                self.main_window,
+                "Confirmation",
+                caption,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            return reply == QMessageBox.StandardButton.Yes
+
+        return self.request_gui(confirmation_callback, caption=message_caption)
