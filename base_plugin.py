@@ -110,7 +110,6 @@ class BasePlugin(QObject):
         self.loop.exec()
         # disconnect after the signal is received to allow other plugins to use the signal
         self.main_window.gui_response.disconnect(self.on_gui_response)
-        print("GUI result: ", self.gui_result)
         return self.gui_result
 
     def on_gui_response(self, result: object):

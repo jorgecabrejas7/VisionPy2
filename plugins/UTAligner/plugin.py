@@ -2,14 +2,17 @@
 from base_plugin import BasePlugin
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
-from utils import image_sequence
-import os
 import numpy as np
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.pyplot as plt
-from pystackreg import StackReg
 import tifffile as tiff
+from skimage.filters import threshold_otsu
+from skimage.measure import label
+from skimage.measure import regionprops
+from scipy.ndimage import binary_fill_holes
+from skimage import feature
+from scipy.ndimage import rotate
 # Define a class that implements the PluginInterface
 class Plugin(BasePlugin):
     # Prompt the user to select a file
@@ -26,38 +29,179 @@ class Plugin(BasePlugin):
         )
 
         # Check if a file was selected
-        if file_path:
+        if file_path and save_path:
 
             print('the path is: ', file_path)
 
             # Create a progress window
 
-            self.update_progress(0, "Loading Volume")
-
             volume = tiff.imread(file_path)
 
             gate = self.get_gate(volume)
 
-            self.update_progress(100, "Loading Volume",1,1)
-
             volume = self.align(volume,gate)
-
-            self.update_progress(100, "Aligning Volume",1,1)
-
-            if save_path:
                     
-                # Create a progress window
+            # align the x,y axis
 
-                # Save the rotated volume
-                self.update_progress(0, "Saving Aligned Volume")
+            angle = self.get_angle(volume,gate)
 
-                tiff.imsave(save_path, volume)
+            #create a progress window
 
-                # Show a message box if the rotated volume is saved successfully, when the message box is closed, close all matplotlib figures
-                self.update_progress(100, "Saving Aligned Volume",1,1)
-                self.prompt_message("Aligned volume saved successfully.")
-                self.request_gui(plt.close,'all')
+            self.update_progress(0, "Rotating Volume")
 
+            rotated_volume = self.rotate_volume(volume, angle, self)
+
+            self.update_progress(100, "Rotating Volume",1,1)
+
+            # Save the rotated volume
+
+            tiff.imsave(save_path, rotated_volume)
+
+            # Show a message box if the rotated volume is saved successfully, when the message box is closed, close all matplotlib figures
+            self.prompt_message("Aligned volume saved successfully.")
+            self.request_gui(plt.close,'all')
+        
+        else:
+            # Show a message box if no file is selected
+            self.prompt_error("No file selected.")
+
+        
+    def get_angle(self,volume,gate):
+        """
+        Get the threshold values for different slices of a volume.
+
+        Args:
+        - self: the object instance
+        - volume: a 3D numpy array representing the volume
+
+        Returns:
+        - user_inputs: a dictionary containing the threshold values for different slices
+
+        Raises:
+        - No specific exceptions are raised within this function.
+
+        Example:
+        ```python
+        # Create an instance of the class
+        instance = ClassName()
+
+        # Define a 3D numpy array representing the volume
+        volume = np.random.rand(10, 10, 10)
+
+        # Call the function to get the threshold values
+        thresholds = instance.get_angles(volume)
+        ```
+        """
+
+        sliceid = gate[0]
+
+        middle_slice = volume[sliceid]
+            
+        #crop the middle slice to its half to avoid the background
+        middle_slice = middle_slice[middle_slice.shape[0]//4:middle_slice.shape[0]//4*3,:]
+
+        #otsu threshold
+        threshold_value = threshold_otsu(middle_slice[middle_slice > 10])
+        print('threshold value is: ', threshold_value)
+        thresholded_slice = middle_slice > threshold_value
+
+        # Label the objects in the thresholded slice
+        labeled_slice = label(thresholded_slice)
+
+        # Get the properties of each labeled region
+        regions = regionprops(labeled_slice)
+
+        # Find the largest connected component
+        largest_component = max(regions, key=lambda region: region.area)
+
+        # Create a mask to keep only the largest component
+        mask = np.zeros_like(labeled_slice)
+        mask[labeled_slice == largest_component.label] = 1
+        mask = binary_fill_holes(mask).astype(int)
+
+        # Apply the mask to the thresholded slice
+        thresholded_slice = thresholded_slice * mask
+
+        # extract edges using canny edge detector
+        mask = feature.canny(mask>0, sigma=0) > 0
+
+        # Label the objects in the thresholded slice
+        mask = label(mask)
+
+        # Get the properties of each labeled region
+        regions = regionprops(mask)
+
+        # Find the largest connected component if there is one, if not the first
+        if len(regions) == 1:
+            largest_component = regions[0]
+        else:
+            largest_component = sorted(regions, key=lambda region: region.area)[-1]
+        
+        #delete everything that is not the second largest component from mask
+        mask[mask != largest_component.label] = 0
+        try:
+            mask = self.get_lines2(mask)
+        except:
+            print('line not smoothed')
+        
+        # Compute the rotation angle of the largest component
+        rotation_angle = largest_component.orientation
+
+        # Convert the angle from radians to degrees
+        rotation_angle_degrees = np.degrees(rotation_angle)
+
+        # Print the rotation angle
+        print(f"The rotation angle of the largest component is {rotation_angle_degrees} degrees.")
+
+        return -rotation_angle_degrees
+        
+    def get_lines2(self,image):
+
+        #get the first and last pixel of the image
+        linea = np.where(image >= 1)
+        x0 = linea[0][0]
+        x1 = linea[0][-1]
+        y0 = linea[1][0]
+        y1 = linea[1][-1]
+
+        #create a image with the same size as the input image
+        image2 = np.zeros_like(image)
+
+        import cv2
+
+        #draw the line on the image2
+        cv2.line(image2,(y0,x0),(y1,x1),(1,1,1),2)
+
+        return image2
+    
+    def rotate_volume(self,volume, angle, progress_window=None):
+        """
+        Rotate a 3D volume by a given angle.
+        
+        Args:
+        volume (numpy.ndarray): A 3D array where each slice corresponds to an image.
+        angle (float): Angle in degrees.
+        
+        Returns:
+        numpy.ndarray: A rotated 3D array.
+        """
+
+        rotated = rotate(volume[0], angle)
+
+        shape = shape = (volume.shape[0],) + rotated.shape
+
+        rotated_volume = np.zeros(shape=shape, dtype=volume.dtype)
+
+        if progress_window == None:
+            for i in range(volume.shape[0]):
+                rotated_volume[i] = rotate(volume[i], angle)
+        # Rotate each slice of the volume with progress bar
+        else:
+            for i in range(volume.shape[0]):
+                rotated_volume[i] = rotate(volume[i], angle)
+                progress_window.update_progress(int(i / volume.shape[0] * 100), f"Rotating: {i}",i,volume.shape[0])
+                
+        return rotated_volume
 
     def ask_gate(self):
 
@@ -99,16 +243,9 @@ class Plugin(BasePlugin):
             #ask the user if the gate is correct
             response = self.prompt_confirmation("Is the gate correct?")
 
-            print(response)
-
             if response:
                 return gate
-
-
-
             
-    
-    
     def align(self,data,gate):
         #now do it for the whole volume
         rolled_data = np.zeros_like(data)
