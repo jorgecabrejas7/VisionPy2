@@ -148,6 +148,45 @@ class BasePlugin(QObject):
         return self.request_gui(
             callback, caption=caption if caption else "Select a folder"
         )
+    
+    def ask_folder_file_save(self, save):
+        """
+        Opens a dialog window to ask the user to select between saving as a file or a folder.
+
+        Parameters:
+        - save (bool): If True, the dialog window is for saving a file. If False, the dialog window is for loading a file.
+
+        Returns:
+        - bool: True if the user selects "File", False if the user selects "Folder".
+        """
+        window = QDialog(self.main_window)
+        layout = QVBoxLayout()
+
+        if save:
+            window.setWindowTitle("Save format")
+        else:
+            window.setWindowTitle("Load format")
+
+        button_name = None
+
+        def on_button_clicked(name):
+            nonlocal button_name
+            button_name = name
+            window.close()
+
+        for name in ["File", "Folder"]:
+            button = QPushButton(name)
+            button.clicked.connect(lambda checked, name=name: on_button_clicked(name))
+            layout.addWidget(button)
+
+        window.setLayout(layout)
+        window.show()
+        window.exec()
+
+        if button_name == "File":
+            return True
+        else:
+            return False
 
     def get_volume_bbox(self, zarr_array: zarr.Array) -> Tuple[int, List[int]]:
         """

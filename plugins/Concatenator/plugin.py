@@ -75,7 +75,7 @@ class Plugin(BasePlugin):
                 else:
                     return volume2
             
-            self.request_gui(flip_ask, volume2)
+            volume2 = self.request_gui(flip_ask, volume2)
 
             i,j =self.request_gui(self.get_candidates,volume1.shape[0],volume2.shape[0],show=False)
 
@@ -87,7 +87,7 @@ class Plugin(BasePlugin):
                 #main
                 # Create a progress window
 
-                self.update_progress(0, "Centering Volume")
+                self.update_progress(0, "Shifting Volume")
                 #get shift
                 shift = user_inputs['Main']
                 #shift volume
@@ -128,7 +128,15 @@ class Plugin(BasePlugin):
         msg_box.setText(f"Overlap in volume1 since slice {slice1}")
         msg_box.exec()
 
-        frameid, ok = QInputDialog.getInt(self.main_window, "Frameid", "Frameid of slice to search candidates \nFrom " + str(slice1) + " to " + str(vol1shape-1) + ":")
+        while True:
+
+            frameid, ok = QInputDialog.getInt(self.main_window, "Frameid", "Frameid of slice to search candidates \nFrom " + str(slice1) + " to " + str(vol1shape-1) + ":")
+
+            if frameid >= slice1 and frameid < vol1shape:
+                break
+
+            self.prompt_error("Invalid slice id")
+        
 
         frameid = np.clip(frameid,a_min=slice1,a_max=vol1shape-1)
 
@@ -142,8 +150,16 @@ class Plugin(BasePlugin):
         msg_box.setText(f"First candidate: {candidates[0]}\nLast candidate: {candidates[-1]}")
         msg_box.exec()
 
-        frameid, ok = QInputDialog.getInt(self.main_window, "Frameid", "Enter the frame of the first volume to concatenate:")
-        frameid2, ok = QInputDialog.getInt(self.main_window, "Frameid2", "Enter the frame of the second volume to concatenate:")
+        while True:
+
+            frameid, ok = QInputDialog.getInt(self.main_window, "Frameid", "Enter the frame of the first volume to concatenate:")
+            frameid2, ok = QInputDialog.getInt(self.main_window, "Frameid2", "Enter the frame of the second volume to concatenate:")
+
+            if frameid >= slice1 and frameid < vol1shape and frameid2 >= 0 and frameid2 < candidates[-1]:
+                break
+            
+            self.prompt_error("Invalid slice id")
+
 
         return frameid,frameid2
         
