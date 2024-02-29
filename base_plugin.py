@@ -13,6 +13,10 @@ from PyQt6.QtWidgets import QFileDialog, QMessageBox
 from views.main_window import MainWindow
 from utils.gui_utils import *
 
+import tifffile as tiff
+
+from utils import image_sequence
+
 
 class BasePlugin(QObject):
     finished = pyqtSignal(object)  # Signal to emit results or status
@@ -110,7 +114,6 @@ class BasePlugin(QObject):
         self.loop.exec()
         # disconnect after the signal is received to allow other plugins to use the signal
         self.main_window.gui_response.disconnect(self.on_gui_response)
-        print("GUI result: ", self.gui_result)
         return self.gui_result
 
     def on_gui_response(self, result: object):
@@ -120,6 +123,15 @@ class BasePlugin(QObject):
     def select_file(self, caption: str = None):
         def callback(caption):
             file, _ = QFileDialog.getOpenFileName(self.main_window, caption=caption)
+            return file
+
+        return self.request_gui(
+            callback, caption=caption if caption else "Select a file"
+        )
+    
+    def select_save_file(self, caption: str = None):
+        def callback(caption):
+            file, _ = QFileDialog.getSaveFileName(self.main_window, caption=caption)
             return file
 
         return self.request_gui(
@@ -140,6 +152,78 @@ class BasePlugin(QObject):
         return self.request_gui(
             callback, caption=caption if caption else "Select a folder"
         )
+    
+    def ask_folder_file_save(self, save):
+        """
+        Opens a dialog window to ask the user to select between saving as a file or a folder.
+
+        Parameters:
+        - save (bool): If True, the dialog window is for saving a file. If False, the dialog window is for loading a file.
+
+        Returns:
+        - bool: True if the user selects "File", False if the user selects "Folder".
+        """
+        window = QDialog(self.main_window)
+        layout = QVBoxLayout()
+
+        if save:
+            window.setWindowTitle("Save format")
+        else:
+            window.setWindowTitle("Load format")
+
+        button_name = None
+
+        def on_button_clicked(name):
+            nonlocal button_name
+            button_name = name
+            window.close()
+
+        for name in ["File", "Folder"]:
+            button = QPushButton(name)
+            button.clicked.connect(lambda checked, name=name: on_button_clicked(name))
+            layout.addWidget(button)
+
+        window.setLayout(layout)
+        window.show()
+        window.exec()
+
+        if button_name == "File":
+            return True
+        else:
+            return False
+    
+    def load_tiff(self):
+        """
+        Load a TIFF file or a sequence of TIFF files.
+
+        Returns:
+            numpy.ndarray: The loaded TIFF image or sequence of images.
+        """
+        file_load = self.request_gui(self.ask_folder_file_save, False)
+
+        if file_load:
+            # Open a file dialog to select a file
+            file_path = self.select_file(
+                "Select File"
+            )
+            return tiff.imread(file_path)
+        else:
+            file_path = self.select_folder(
+                "Select Folder"
+            )
+            return image_sequence.read_sequence2(file_path, progress_window=self)
+    
+    def save_tiff_file(self, volume, file_path, imagej=True, metadata={'axes': 'ZYX', 'unit': 'um'}):
+        """
+        Save a volume as a TIFF file.
+
+        Args:
+            volume (ndarray): The volume to be saved.
+            file_path (str): The path to save the TIFF file.
+            imagej (bool, optional): Whether to save the file in ImageJ format. Defaults to True.
+            metadata (dict, optional): Metadata to be included in the TIFF file. Defaults to {'axes': 'ZYX', 'unit': 'um'}.
+        """
+        tiff.imwrite(file_path, volume, imagej=imagej, metadata=metadata)
 
     def get_volume_bbox(self, zarr_array: zarr.Array) -> Tuple[int, List[int]]:
         """
@@ -194,3 +278,16 @@ class BasePlugin(QObject):
             )
 
         return self.request_gui(message_callback, caption=message_caption)
+
+    #Create a function to prompot a confirmation box with a message and yes and no buttons, return True if yes and False if no
+    def prompt_confirmation(self, message_caption: str) -> bool:
+        def confirmation_callback(caption: str) -> bool:
+            reply = QMessageBox.question(
+                self.main_window,
+                "Confirmation",
+                caption,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            return reply == QMessageBox.StandardButton.Yes
+
+        return self.request_gui(confirmation_callback, caption=message_caption)
