@@ -1,5 +1,4 @@
 import numpy as np
-import cv2
 from scipy.optimize import minimize
 from scipy.ndimage import shift as nd_shift
 from pystackreg import StackReg

@@ -3,16 +3,10 @@ import gzip
 import tifffile
 import numpy as np
 from skimage import measure
-import matplotlib.pyplot as plt
 import pandas as pd
 from PyQt6.QtWidgets import QFileDialog, QApplication
-import cv2
 import argparse
 import zarr
-import tempfile
-from tqdm import tqdm
-import zipfile
-import os
 from pathlib import Path
 
 app = QApplication([])
@@ -54,7 +48,11 @@ def compress():
         properties = measure.regionprops_table(labeled_image, properties=("coords",))
         df = pd.DataFrame(properties)
 
-        save_path = Path(QFileDialog.getSaveFileName(None, "Where to save the file", "", "GZIP Files (*pkl.gz)")[0])
+        save_path = Path(
+            QFileDialog.getSaveFileName(
+                None, "Where to save the file", "", "GZIP Files (*pkl.gz)"
+            )[0]
+        )
 
         data = {"df": df, "shape": images.shape}
         with gzip.open(f"{save_path}.pkl.gz", "wb") as f:
@@ -72,14 +70,20 @@ def extract():
         shape = data["shape"]
     reconstructed_image = np.zeros(shape, dtype=np.uint8)
     for index, row in df.iterrows():
-    # Get the coordinates for the current region
-        coords = row['coords']
+        # Get the coordinates for the current region
+        coords = row["coords"]
         for coord in coords:
             x, y, z = coord
             reconstructed_image[x, y, z] = 255
 
-    save_path = Path(QFileDialog.getSaveFileName(None, "Where to save the file", "", "TIFF Files (*.tif)")[0])
-    tifffile.imwrite(f"{save_path}", reconstructed_image, imagej=True, metadata={"axes": "ZYX"})
+    save_path = Path(
+        QFileDialog.getSaveFileName(
+            None, "Where to save the file", "", "TIFF Files (*.tif)"
+        )[0]
+    )
+    tifffile.imwrite(
+        f"{save_path}", reconstructed_image, imagej=True, metadata={"axes": "ZYX"}
+    )
 
 
 if args.c:
@@ -87,4 +91,3 @@ if args.c:
 
 if args.x:
     extract()
-

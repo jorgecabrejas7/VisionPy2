@@ -1,11 +1,9 @@
-import numpy as np
+from typing import List, Tuple
+
 import matplotlib.pyplot as plt
-from matplotlib.widgets import RectangleSelector, Slider
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton
-from typing import Tuple, List
-from utils.image_sequence import read_sequence, read_virtual_sequence
-import tifffile
 import zarr
+from matplotlib.widgets import RectangleSelector, Slider
+from PyQt6.QtWidgets import QDialog, QLabel, QPushButton, QVBoxLayout
 
 
 def virtual_sequence_bbox(zarr_array: zarr.Array) -> Tuple[int, List[int]]:

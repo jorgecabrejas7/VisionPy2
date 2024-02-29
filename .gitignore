@@ -321,4 +321,4 @@ cython_debug/
 *.tiff
 *.tiff
 *.png
-*.ipynb
+.ruff_cache/

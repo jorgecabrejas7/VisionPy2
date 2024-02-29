@@ -38,7 +38,10 @@ def auto_adjust(image: np.ndarray) -> np.ndarray:
     # Apply contrast stretching and return the result
     return np.clip((image - hmin) * (255 / (hmax - hmin)), 0, 255)
 
-def adjust_brightness_contrast(image: np.ndarray, min_val: int, max_val: int) -> np.ndarray:
+
+def adjust_brightness_contrast(
+    image: np.ndarray, min_val: int, max_val: int
+) -> np.ndarray:
     """
     Adjusts the contrast of an image based on specified minimum and maximum values.
 

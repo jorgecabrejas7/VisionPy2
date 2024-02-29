@@ -1,21 +1,19 @@
 # base_plugin.py
 
-import traceback
-from abc import abstractmethod
-from typing import *
-import uuid
-import sys
 import os
-
-import zarr
-from PyQt6.QtCore import QEventLoop, QObject, pyqtSignal
-from PyQt6.QtWidgets import QFileDialog, QMessageBox
-from views.main_window import MainWindow
-from utils.gui_utils import *
+import sys
+import traceback
+import uuid
+from abc import abstractmethod
 
 import tifffile as tiff
+import zarr
+from PyQt6.QtCore import QEventLoop, QObject, pyqtSignal
+from PyQt6.QtWidgets import QFileDialog, QMessageBox, QDialog, QVBoxLayout, QPushButton
 
 from utils import image_sequence
+from utils.gui_utils import virtual_sequence_bbox, virtual_sequence_slice
+from views.main_window import MainWindow
 
 
 class BasePlugin(QObject):
@@ -99,12 +97,24 @@ class BasePlugin(QObject):
         aligning with Qt signal-slot mechanism. 
 
         Callback functions must implement the logic of the GUI and return a value, even if it is a boolean meaning
-        error or success. For ease of use and readability, functions such as selecting a file define the callback
+        error or success (None is also correct and will be interpreted as False if needed in the process).
+        For ease of use and readability, functions such as selecting a file define the callback
         inside themselves. All they have to do is return request_gui(calllback, kwargs) and the result will be returned
         as if it was a normal function call.
     """
 
     def request_gui(self, callback: object, *args, **kwargs):
+        """
+        Requests GUI interaction and waits for the response.
+
+        Args:
+            callback (object): The callback function to be executed.
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+
+        Returns:
+            The result of the GUI interaction.
+        """
         self.loop = QEventLoop()
         self.gui_result = None
 
@@ -117,10 +127,28 @@ class BasePlugin(QObject):
         return self.gui_result
 
     def on_gui_response(self, result: object):
+        """
+        Handles the response from the GUI.
+
+        Args:
+            result (object): The result received from the GUI.
+
+        Returns:
+            None
+        """
         self.gui_result = result
         self.loop.exit()
 
     def select_file(self, caption: str = None):
+        """
+        Opens a file dialog to allow the user to select a file.
+
+        Args:
+            caption (str, optional): The caption to display in the file dialog. Defaults to None.
+
+        Returns:
+            str: The path of the selected file.
+        """
         def callback(caption):
             file, _ = QFileDialog.getOpenFileName(self.main_window, caption=caption)
             return file
@@ -128,8 +156,18 @@ class BasePlugin(QObject):
         return self.request_gui(
             callback, caption=caption if caption else "Select a file"
         )
-    
+
     def select_save_file(self, caption: str = None):
+        """
+        Opens a file dialog to select a file for saving.
+
+        Args:
+            caption (str, optional): The caption for the file dialog. Defaults to None.
+
+        Returns:
+            str: The selected file path.
+
+        """
         def callback(caption):
             file, _ = QFileDialog.getSaveFileName(self.main_window, caption=caption)
             return file
@@ -139,20 +177,29 @@ class BasePlugin(QObject):
         )
 
     def select_folder(self, caption: str = None):
-        def callback(caption):
-            if sys.platform == "win32":
-                root_path = "C:\\"
-            else:
-                root_path = os.path.expanduser("~")
-            folder = QFileDialog.getExistingDirectory(
-                self.main_window, caption, root_path
-            )
-            return folder
+            """
+            Opens a dialog box to select a folder.
 
-        return self.request_gui(
-            callback, caption=caption if caption else "Select a folder"
-        )
-    
+            Args:
+                caption (str, optional): The caption for the dialog box. Defaults to None.
+
+            Returns:
+                str: The selected folder path.
+            """
+            def callback(caption):
+                if sys.platform == "win32":
+                    root_path = "C:\\"
+                else:
+                    root_path = os.path.expanduser("~")
+                folder = QFileDialog.getExistingDirectory(
+                    self.main_window, caption, root_path
+                )
+                return folder
+
+            return self.request_gui(
+                callback, caption=caption if caption else "Select a folder"
+            )
+
     def ask_folder_file_save(self, save):
         """
         Opens a dialog window to ask the user to select between saving as a file or a folder.
@@ -191,7 +238,7 @@ class BasePlugin(QObject):
             return True
         else:
             return False
-    
+
     def load_tiff(self):
         """
         Load a TIFF file or a sequence of TIFF files.
@@ -203,17 +250,15 @@ class BasePlugin(QObject):
 
         if file_load:
             # Open a file dialog to select a file
-            file_path = self.select_file(
-                "Select File"
-            )
+            file_path = self.select_file("Select File")
             return tiff.imread(file_path)
         else:
-            file_path = self.select_folder(
-                "Select Folder"
-            )
+            file_path = self.select_folder("Select Folder")
             return image_sequence.read_sequence2(file_path, progress_window=self)
-    
-    def save_tiff_file(self, volume, file_path, imagej=True, metadata={'axes': 'ZYX', 'unit': 'um'}):
+
+    def save_tiff_file(
+        self, volume, file_path, imagej=True, metadata={"axes": "ZYX", "unit": "um"}
+    ):
         """
         Save a volume as a TIFF file.
 
@@ -225,7 +270,7 @@ class BasePlugin(QObject):
         """
         tiff.imwrite(file_path, volume, imagej=imagej, metadata=metadata)
 
-    def get_volume_bbox(self, zarr_array: zarr.Array) -> Tuple[int, List[int]]:
+    def get_volume_bbox(self, zarr_array: zarr.Array) -> tuple[int, list[int]]:
         """
         Processes a Zarr array, displaying each slice and allowing the user to select a
         bounding box on a specific slice. Captures the details via a dialog box.
@@ -239,6 +284,16 @@ class BasePlugin(QObject):
         return self.request_gui(virtual_sequence_bbox, zarr_array=zarr_array)
 
     def select_slice(self, zarr_array: zarr.Array) -> int:
+        """
+        Selects a slice from the given Zarr array.
+
+        Args:
+            zarr_array (zarr.Array): The Zarr array from which to select a slice.
+
+        Returns:
+            int: The selected slice.
+
+        """
         return self.request_gui(virtual_sequence_slice, zarr_array=zarr_array)
 
     def update_progress(
@@ -262,32 +317,59 @@ class BasePlugin(QObject):
         self.progress.emit(value, message, index, total)
 
     def prompt_error(self, error_caption: str) -> None:
+        """
+        Displays an error message box with the given error caption.
+
+        Args:
+            error_caption (str): The caption for the error message.
+
+        Returns:
+            None
+        """
         def error_callback(caption: str) -> None:
             QMessageBox.critical(
                 self.main_window, "Error", caption, QMessageBox.StandardButton.Ok
             )
 
         return self.request_gui(error_callback, caption=error_caption)
-    
-    #create a function to prompt a message box with a message
+
+    # create a function to prompt a message box with a message
 
     def prompt_message(self, message_caption: str) -> None:
-        def message_callback(caption: str) -> None:
-            QMessageBox.information(
-                self.main_window, "Message", caption, QMessageBox.StandardButton.Ok
-            )
+            """
+            Displays a message box with the given caption.
 
-        return self.request_gui(message_callback, caption=message_caption)
+            Args:
+                message_caption (str): The caption of the message box.
 
-    #Create a function to prompot a confirmation box with a message and yes and no buttons, return True if yes and False if no
+            Returns:
+                None
+            """
+            def message_callback(caption: str) -> None:
+                QMessageBox.information(
+                    self.main_window, "Message", caption, QMessageBox.StandardButton.Ok
+                )
+
+            return self.request_gui(message_callback, caption=message_caption)
+
+    # Create a function to prompot a confirmation box with a message and yes and no buttons, return True if yes and False if no
     def prompt_confirmation(self, message_caption: str) -> bool:
-        def confirmation_callback(caption: str) -> bool:
-            reply = QMessageBox.question(
-                self.main_window,
-                "Confirmation",
-                caption,
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            )
-            return reply == QMessageBox.StandardButton.Yes
+            """
+            Prompts the user for confirmation with a message caption.
 
-        return self.request_gui(confirmation_callback, caption=message_caption)
+            Args:
+                message_caption (str): The message caption to display.
+
+            Returns:
+                bool: True if the user confirms, False otherwise.
+            """
+            def confirmation_callback(caption: str) -> bool:
+                reply = QMessageBox.question(
+                    self.main_window,
+                    "Confirmation",
+                    caption,
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                )
+                return reply == QMessageBox.StandardButton.Yes
+
+            return self.request_gui(confirmation_callback, caption=message_caption)

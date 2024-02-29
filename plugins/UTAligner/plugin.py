@@ -4,8 +4,6 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 import numpy as np
 import matplotlib.pyplot as plt
-import numpy as np
-import matplotlib.pyplot as plt
 import tifffile as tiff
 from skimage.filters import threshold_otsu
 from skimage.measure import label
@@ -13,25 +11,21 @@ from skimage.measure import regionprops
 from scipy.ndimage import binary_fill_holes
 from skimage import feature
 from scipy.ndimage import rotate
+
+
 # Define a class that implements the PluginInterface
 class Plugin(BasePlugin):
     # Prompt the user to select a file
     def run(self):
-
         # Open a file dialog to select a file
-        file_path = self.select_file(
-            "Select UT File"
-        )
+        file_path = self.select_file("Select UT File")
 
         # Open a file dialog to select a folder to save the rotated volume
-        save_path = self.select_save_file(
-            "Select filename to save the aligned volume"
-        )
+        save_path = self.select_save_file("Select filename to save the aligned volume")
 
         # Check if a file was selected
         if file_path and save_path:
-
-            print('the path is: ', file_path)
+            print("the path is: ", file_path)
 
             # Create a progress window
 
@@ -39,19 +33,19 @@ class Plugin(BasePlugin):
 
             gate = self.get_gate(volume)
 
-            volume = self.align(volume,gate)
-                    
+            volume = self.align(volume, gate)
+
             # align the x,y axis
 
-            angle = self.get_angle(volume,gate)
+            angle = self.get_angle(volume, gate)
 
-            #create a progress window
+            # create a progress window
 
             self.update_progress(0, "Rotating Volume")
 
             rotated_volume = self.rotate_volume(volume, angle, self)
 
-            self.update_progress(100, "Rotating Volume",1,1)
+            self.update_progress(100, "Rotating Volume", 1, 1)
 
             # Save the rotated volume
 
@@ -59,14 +53,13 @@ class Plugin(BasePlugin):
 
             # Show a message box if the rotated volume is saved successfully, when the message box is closed, close all matplotlib figures
             self.prompt_message("Aligned volume saved successfully.")
-            self.request_gui(plt.close,'all')
-        
+            self.request_gui(plt.close, "all")
+
         else:
             # Show a message box if no file is selected
             self.prompt_error("No file selected.")
 
-        
-    def get_angle(self,volume,gate):
+    def get_angle(self, volume, gate):
         """
         Get the threshold values for different slices of a volume.
 
@@ -96,13 +89,15 @@ class Plugin(BasePlugin):
         sliceid = gate[0]
 
         middle_slice = volume[sliceid]
-            
-        #crop the middle slice to its half to avoid the background
-        middle_slice = middle_slice[middle_slice.shape[0]//4:middle_slice.shape[0]//4*3,:]
 
-        #otsu threshold
+        # crop the middle slice to its half to avoid the background
+        middle_slice = middle_slice[
+            middle_slice.shape[0] // 4 : middle_slice.shape[0] // 4 * 3, :
+        ]
+
+        # otsu threshold
         threshold_value = threshold_otsu(middle_slice[middle_slice > 10])
-        print('threshold value is: ', threshold_value)
+        print("threshold value is: ", threshold_value)
         thresholded_slice = middle_slice > threshold_value
 
         # Label the objects in the thresholded slice
@@ -123,7 +118,7 @@ class Plugin(BasePlugin):
         thresholded_slice = thresholded_slice * mask
 
         # extract edges using canny edge detector
-        mask = feature.canny(mask>0, sigma=0) > 0
+        mask = feature.canny(mask > 0, sigma=0) > 0
 
         # Label the objects in the thresholded slice
         mask = label(mask)
@@ -136,14 +131,14 @@ class Plugin(BasePlugin):
             largest_component = regions[0]
         else:
             largest_component = sorted(regions, key=lambda region: region.area)[-1]
-        
-        #delete everything that is not the second largest component from mask
+
+        # delete everything that is not the second largest component from mask
         mask[mask != largest_component.label] = 0
         try:
             mask = self.get_lines2(mask)
         except:
-            print('line not smoothed')
-        
+            print("line not smoothed")
+
         # Compute the rotation angle of the largest component
         rotation_angle = largest_component.orientation
 
@@ -151,37 +146,38 @@ class Plugin(BasePlugin):
         rotation_angle_degrees = np.degrees(rotation_angle)
 
         # Print the rotation angle
-        print(f"The rotation angle of the largest component is {rotation_angle_degrees} degrees.")
+        print(
+            f"The rotation angle of the largest component is {rotation_angle_degrees} degrees."
+        )
 
         return -rotation_angle_degrees
-        
-    def get_lines2(self,image):
 
-        #get the first and last pixel of the image
+    def get_lines2(self, image):
+        # get the first and last pixel of the image
         linea = np.where(image >= 1)
         x0 = linea[0][0]
         x1 = linea[0][-1]
         y0 = linea[1][0]
         y1 = linea[1][-1]
 
-        #create a image with the same size as the input image
+        # create a image with the same size as the input image
         image2 = np.zeros_like(image)
 
         import cv2
 
-        #draw the line on the image2
-        cv2.line(image2,(y0,x0),(y1,x1),(1,1,1),2)
+        # draw the line on the image2
+        cv2.line(image2, (y0, x0), (y1, x1), (1, 1, 1), 2)
 
         return image2
-    
-    def rotate_volume(self,volume, angle, progress_window=None):
+
+    def rotate_volume(self, volume, angle, progress_window=None):
         """
         Rotate a 3D volume by a given angle.
-        
+
         Args:
         volume (numpy.ndarray): A 3D array where each slice corresponds to an image.
         angle (float): Angle in degrees.
-        
+
         Returns:
         numpy.ndarray: A rotated 3D array.
         """
@@ -199,61 +195,63 @@ class Plugin(BasePlugin):
         else:
             for i in range(volume.shape[0]):
                 rotated_volume[i] = rotate(volume[i], angle)
-                progress_window.update_progress(int(i / volume.shape[0] * 100), f"Rotating: {i}",i,volume.shape[0])
-                
+                progress_window.update_progress(
+                    int(i / volume.shape[0] * 100), f"Rotating: {i}", i, volume.shape[0]
+                )
+
         return rotated_volume
 
     def ask_gate(self):
-
-        #create a window 
-        start, ok = QInputDialog.getInt(self.main_window, "Start", f"Enter start of the gate",0)
-        end, ok = QInputDialog.getInt(self.main_window, "End", f"Enter start of the gate",0)
+        # create a window
+        start, ok = QInputDialog.getInt(
+            self.main_window, "Start", "Enter start of the gate", 0
+        )
+        end, ok = QInputDialog.getInt(
+            self.main_window, "End", "Enter start of the gate", 0
+        )
 
         if ok:
-            return (start,end)
-    
-    def plot_signal_gate(self,signal,gate):
-        #clean the plot
-        plt.close('all')
+            return (start, end)
+
+    def plot_signal_gate(self, signal, gate):
+        # clean the plot
+        plt.close("all")
         plt.plot(signal)
-        plt.axvline(x=gate[0], color='r', linestyle='--')
-        plt.axvline(x=gate[1], color='r', linestyle='--')
+        plt.axvline(x=gate[0], color="r", linestyle="--")
+        plt.axvline(x=gate[1], color="r", linestyle="--")
         plt.show()
 
     def get_gate(self, data):
+        max_signal = np.max(data, axis=(1, 2))
 
-        max_signal = np.max(data, axis=(1,2))
-
-        self.request_gui(plt.plot,max_signal)
+        self.request_gui(plt.plot, max_signal)
 
         while True:
-
             while True:
-
                 gate = self.request_gui(self.ask_gate)
 
-                #gate end must be greater than gate start and start must be greater than 0
+                # gate end must be greater than gate start and start must be greater than 0
                 if (gate[0] < gate[1]) and (gate[0] > 0):
                     break
-            
-            #plot the signal and the gate
 
-            self.request_gui(self.plot_signal_gate,max_signal,gate)
+            # plot the signal and the gate
 
-            #ask the user if the gate is correct
+            self.request_gui(self.plot_signal_gate, max_signal, gate)
+
+            # ask the user if the gate is correct
             response = self.prompt_confirmation("Is the gate correct?")
 
             if response:
                 return gate
-            
-    def align(self,data,gate):
-        #now do it for the whole volume
+
+    def align(self, data, gate):
+        # now do it for the whole volume
         rolled_data = np.zeros_like(data)
         for i in range(data.shape[1]):
             for j in range(data.shape[2]):
-                signal = data[:,i,j]
-                gated_data = signal[gate[0]:gate[1]]
+                signal = data[:, i, j]
+                gated_data = signal[gate[0] : gate[1]]
                 max_gated_data_index = np.argmax(gated_data, axis=0)
                 rolled = np.roll(signal, -max_gated_data_index)
-                rolled_data[:,i,j] = rolled
+                rolled_data[:, i, j] = rolled
         return rolled_data

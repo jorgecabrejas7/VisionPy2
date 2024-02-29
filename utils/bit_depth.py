@@ -1,7 +1,6 @@
 import numpy as np
 
 
-
 def f32_to_uint16(float_image: np.ndarray, do_scaling: bool = True) -> np.ndarray:
     """
     Converts a floating-point image to a short (16-bit) image.
@@ -22,7 +21,7 @@ def f32_to_uint16(float_image: np.ndarray, do_scaling: bool = True) -> np.ndarra
         array([[   0, 21845],
                [43690, 65535]], dtype=uint16)
     """
-    
+
     min_val: float = float_image.min()
     max_val: float = float_image.max()
     scale: float = 65535.0 / (max_val - min_val) if max_val != min_val else 1.0
@@ -36,7 +35,8 @@ def f32_to_uint16(float_image: np.ndarray, do_scaling: bool = True) -> np.ndarra
     short_image = np.round(short_image).astype(np.uint16)
 
     return short_image
-    
+
+
 def convert_to_8bit(image, use_scaling=False, min_val=None, max_val=None):
     """
     Converts an image to 8-bit. If use_scaling is True, it scales from the min-max range to 0-255.

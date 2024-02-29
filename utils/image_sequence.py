@@ -1,15 +1,11 @@
 # utils/image_sequence.py
 
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
 import tifffile
 import zarr
-from PyQt6.QtWidgets import *
 from typing import List
-
-from utils.progress_window import ProgressWindow
 
 from pathlib import Path
 
@@ -46,10 +42,11 @@ def read_sequence(folder_path):
 
     return tiff_sequence.asarray(ioworkers=5)
 
-def read_sequence2(folder_path,progress_window = None):
+
+def read_sequence2(folder_path, progress_window=None):
     """
     Read a sequence of TIFF files in a folder as a 3D volume.
-    
+
     Args:
     folder_path (str): Path to the folder containing TIFF files.
 
@@ -58,36 +55,46 @@ def read_sequence2(folder_path,progress_window = None):
     """
 
     # List and sort the TIFF files
-    tiff_files = sorted([os.path.join(folder_path, f) for f in os.listdir(folder_path) if (f.endswith('.tiff') or f.endswith('.tif'))])
+    tiff_files = sorted(
+        [
+            os.path.join(folder_path, f)
+            for f in os.listdir(folder_path)
+            if (f.endswith(".tiff") or f.endswith(".tif"))
+        ]
+    )
 
-    tiff_sequence = tifffile.TiffSequence(tiff_files)
-    
     # Get the total number of TIFF files
     total_files = len(tiff_files)
-    
+
     # Read each TIFF file and update progress
     volume = []
 
-    if progress_window == None:
-    
+    if progress_window is None:
         for i, file_path in enumerate(tiff_files):
             slice_data = tifffile.imread(file_path)
             volume.append(slice_data)
-                
-            # Update progress
-    
-    else:
 
+            # Update progress
+
+    else:
         for i, file_path in enumerate(tiff_files):
             slice_data = tifffile.imread(file_path)
             volume.append(slice_data)
-            progress_window.update_progress(int(i / total_files * 100), f"Loading: {os.path.basename(file_path)}",i,total_files)
-            
+            progress_window.update_progress(
+                int(i / total_files * 100),
+                f"Loading: {os.path.basename(file_path)}",
+                i,
+                total_files,
+            )
+
         # Update progress
-    
+
     return np.array(volume)
 
-def read_virtual_sequence(folder_path: str, mode: str = "r", chunkmode: int = tifffile.CHUNKMODE.FILE) -> zarr.Array:
+
+def read_virtual_sequence(
+    folder_path: str, mode: str = "r", chunkmode: int = tifffile.CHUNKMODE.FILE
+) -> zarr.Array:
     """
     Read a sequence of TIFF files in a folder as a 3D volume.
 
@@ -123,29 +130,35 @@ def read_virtual_sequence(folder_path: str, mode: str = "r", chunkmode: int = ti
 
     return zarr.open(volume_as_zarr, mode=mode)
 
+
 def write_sequence2(folder_path, name, volume, progress_window=None):
     """
     Save a 3D volume as a sequence of TIFF files in a folder.
-    
+
     Args:
     folder_path (str): Path to the folder where TIFF files will be saved.
     name (str): Name of the TIFF files.
     volume (numpy.ndarray): A 3D array where each slice corresponds to an image.
     """
 
-    folder_path = folder_path 
+    folder_path = folder_path
 
     # Create the folder if it doesn't exist
     Path(folder_path).mkdir(parents=True, exist_ok=True)
 
-    if progress_window == None:
-            # Save each slice as a TIFF file
-            for i in range(volume.shape[0]):
-                tifffile.imwrite(f"{folder_path}/{name}_{i:04d}.tif", volume[i])
+    if progress_window is None:
+        # Save each slice as a TIFF file
+        for i in range(volume.shape[0]):
+            tifffile.imwrite(f"{folder_path}/{name}_{i:04d}.tif", volume[i])
     else:
         total_files = volume.shape[0]
         for i in range(volume.shape[0]):
             tifffile.imwrite(f"{folder_path}/{name}_{i:04d}.tif", volume[i])
-            progress_window.update_progress(int(i / total_files * 100), f"Saving: {name}_{i:04d}.tif",i,total_files)
-    
+            progress_window.update_progress(
+                int(i / total_files * 100),
+                f"Saving: {name}_{i:04d}.tif",
+                i,
+                total_files,
+            )
+
     print("Saving complete.")
