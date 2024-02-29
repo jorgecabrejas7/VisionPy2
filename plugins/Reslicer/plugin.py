@@ -61,7 +61,7 @@ class Plugin(BasePlugin):
             #save the resliced volume
             if file_save:
                 self.update_progress(0, "Saving resliced volume.")
-                tiff.imwrite(save_path, resliced, imagej = True)
+                tiff.imwrite(save_path, resliced, imagej = True, metadata = {'axes': 'ZYX', 'unit':'um'})
             else:
                 image_sequence.write_sequence2(save_path, os.path.basename(save_path), resliced, progress_window=self)
             self.update_progress(100, "Resliced volume saved successfully.")

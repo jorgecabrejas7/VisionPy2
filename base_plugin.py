@@ -13,6 +13,10 @@ from PyQt6.QtWidgets import QFileDialog, QMessageBox
 from views.main_window import MainWindow
 from utils.gui_utils import *
 
+import tifffile as tiff
+
+from utils import image_sequence
+
 
 class BasePlugin(QObject):
     finished = pyqtSignal(object)  # Signal to emit results or status
@@ -187,6 +191,39 @@ class BasePlugin(QObject):
             return True
         else:
             return False
+    
+    def load_tiff(self):
+        """
+        Load a TIFF file or a sequence of TIFF files.
+
+        Returns:
+            numpy.ndarray: The loaded TIFF image or sequence of images.
+        """
+        file_load = self.request_gui(self.ask_folder_file_save, False)
+
+        if file_load:
+            # Open a file dialog to select a file
+            file_path = self.select_file(
+                "Select File"
+            )
+            return tiff.imread(file_path)
+        else:
+            file_path = self.select_folder(
+                "Select Folder"
+            )
+            return image_sequence.read_sequence2(file_path, progress_window=self)
+    
+    def save_tiff_file(self, volume, file_path, imagej=True, metadata={'axes': 'ZYX', 'unit': 'um'}):
+        """
+        Save a volume as a TIFF file.
+
+        Args:
+            volume (ndarray): The volume to be saved.
+            file_path (str): The path to save the TIFF file.
+            imagej (bool, optional): Whether to save the file in ImageJ format. Defaults to True.
+            metadata (dict, optional): Metadata to be included in the TIFF file. Defaults to {'axes': 'ZYX', 'unit': 'um'}.
+        """
+        tiff.imwrite(file_path, volume, imagej=imagej, metadata=metadata)
 
     def get_volume_bbox(self, zarr_array: zarr.Array) -> Tuple[int, List[int]]:
         """
