@@ -6,10 +6,8 @@ import threading
 import traceback
 
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 import tifffile
-from skimage.exposure import rescale_intensity
 from PyQt6.QtCore import *
 from PyQt6.QtGui import QDoubleValidator
 from PyQt6.QtWidgets import *
@@ -69,29 +67,28 @@ class Plugin(BasePlugin):
                 self.finished.emit(self)
                 return
 
-            
-
             # Start processing and saving threads
             num_processing_threads = 8  # You can adjust this value
             num_saving_threads = 4
             for _ in range(num_processing_threads):
                 processing_thread = threading.Thread(
-                    target=self.processing_worker, 
-                    args=(self.processing_queue, self.saving_queue)
+                    target=self.processing_worker,
+                    args=(self.processing_queue, self.saving_queue),
                 )
                 processing_thread.daemon = True
                 processing_thread.start()
 
-            
             for _ in range(num_saving_threads):
-                saving_thread = threading.Thread(target=self.saving_worker, args=(self.saving_queue,))
+                saving_thread = threading.Thread(
+                    target=self.saving_worker, args=(self.saving_queue,)
+                )
                 saving_thread.daemon = True
                 saving_thread.start()
 
             for i in range(self.n_slices):
                 # Enqueue the slice for processing
                 self.processing_queue.put((i, original_slice_names[i]))
-            
+
             # Wait for all tasks to be processed
             self.processing_queue.join()
             self.saving_queue.join()
@@ -101,7 +98,7 @@ class Plugin(BasePlugin):
 
             self.update_progress(100, "Finished", self.n_slices, self.n_slices)
 
-        except Exception as e:
+        except Exception:
             self.prompt_error(traceback.format_exc())
             logging.error("Traceback:", exc_info=True)
             self.finished.emit(self)
@@ -125,24 +122,27 @@ class Plugin(BasePlugin):
         standardized_slice = np.clip(standardized_slice, 0, 65535).astype(np.uint16)
 
         return standardized_slice
-    
+
     def processing_worker(self, processing_queue, saving_queue):
-            while not self.stop_event.is_set():
-                try:
-                    x1, y1, x2, y2 = self.bbox
-                    i, name = processing_queue.get(timeout=1)
-                    slice = self.volume[i, y1:y2, x1:x2]
-                    standardized_slice = self.standardize_slice(slice, self.target_mean, self.target_std)
-                    slice_8bit = convert_to_8bit(standardized_slice)
-                    eq_slice = np.empty_like(slice_8bit)
-                    cv2.intensity_transform.autoscaling(slice_8bit, eq_slice)
-                    
-                    # Put the processed slice into the saving queue
-                    saving_queue.put((i, eq_slice, name))
-                    del slice, standardized_slice, slice_8bit, eq_slice
-                    processing_queue.task_done()
-                except queue.Empty:
-                    continue
+        while not self.stop_event.is_set():
+            try:
+                x1, y1, x2, y2 = self.bbox
+                i, name = processing_queue.get(timeout=1)
+                slice = self.volume[i, y1:y2, x1:x2]
+                standardized_slice = self.standardize_slice(
+                    slice, self.target_mean, self.target_std
+                )
+                slice_8bit = convert_to_8bit(standardized_slice)
+                eq_slice = np.empty_like(slice_8bit)
+                cv2.intensity_transform.autoscaling(slice_8bit, eq_slice)
+
+                # Put the processed slice into the saving queue
+                saving_queue.put((i, eq_slice, name))
+                del slice, standardized_slice, slice_8bit, eq_slice
+                processing_queue.task_done()
+            except queue.Empty:
+                continue
+
     def saving_worker(self, saving_queue):
         while not self.stop_event.is_set():
             try:
@@ -164,6 +164,7 @@ class Plugin(BasePlugin):
                 saving_queue.task_done()
             except queue.Empty:
                 continue
+
 
 def create_equalization_settings_dialog(parent: QMainWindow) -> callable:
     def get_equalization_settings() -> dict[str, float]:
@@ -234,5 +235,3 @@ def create_equalization_settings_dialog(parent: QMainWindow) -> callable:
             return None
 
     return get_equalization_settings
-
-

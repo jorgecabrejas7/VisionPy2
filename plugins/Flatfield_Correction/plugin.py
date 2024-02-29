@@ -2,11 +2,9 @@
 
 import os
 import traceback
-from pathlib import Path
 from typing import *
 
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 import tifffile
 from PyQt6.QtCore import *

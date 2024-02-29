@@ -11,7 +11,6 @@ from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
     QDialog,
-    QFileDialog,
     QMainWindow,
     QMessageBox,
     QProgressBar,
@@ -19,7 +18,6 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from utils.gui_utils import *
 from utils.progress_window import ProgressWindow
 
 
@@ -129,7 +127,7 @@ class MainWindow(QMainWindow):
         self.plugin_toolbar.addAction(reload_plugins_action)
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
-        layout = QVBoxLayout(central_widget)
+        self.layout = QVBoxLayout(central_widget)
 
     def discover_plugins(self):
         logging.info("Discovering plugins")
@@ -320,6 +318,6 @@ class MainWindow(QMainWindow):
                     result = callback()
 
             self.gui_response.emit(result)
-        except Exception as e:
+        except Exception:
             traceback.print_exc()
             self.gui_response.emit(None)

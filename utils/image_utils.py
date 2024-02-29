@@ -1,7 +1,6 @@
 import numpy as np
 import tifffile
 import zarr
-from typing import *
 import cv2
 
 

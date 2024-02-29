@@ -6,15 +6,15 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QVBoxLayout,
-    QInputDialog,
     QFormLayout,
     QLineEdit,
     QLabel,
     QMainWindow,
 )
-from PyQt6.QtGui import QDoubleValidator, QIntValidator, QValidator
+from PyQt6.QtGui import QDoubleValidator, QIntValidator
 from PyQt6.QtCore import QLocale
 from typing import Union
+
 
 def equalX(mat, bkg, ref_mat, ref_bkg):
     # Computing intermediate value E3
@@ -27,8 +27,6 @@ def equalX(mat, bkg, ref_mat, ref_bkg):
     return X
 
 
-
-
 def equalY(mat, bkg, ref_mat, ref_bkg):
     # Computing intermediate value E3
     E3 = (mat - bkg) / (ref_mat - ref_bkg)
@@ -38,7 +36,6 @@ def equalY(mat, bkg, ref_mat, ref_bkg):
     Y = round(Y)
 
     return Y
-
 
 
 def create_equalization_settings_dialog(parent: QMainWindow) -> callable:
@@ -86,8 +83,6 @@ def create_equalization_settings_dialog(parent: QMainWindow) -> callable:
                 self.start_slice_edit = QLineEdit("1")
                 self.start_slice_edit.setValidator(QIntValidator())
                 form_layout.addRow("Start slice:", self.start_slice_edit)
-
-                
 
                 self.end_slice_edit = QLineEdit("4425")
                 self.end_slice_edit.setValidator(QIntValidator())
