@@ -75,23 +75,47 @@ class Plugin(BasePlugin):
                 else:
                     return volume2
             
+            def registered_ask():
+
+                #creat a window that asks the user if the volumes are registered
+                msg_box = QMessageBox(self.main_window)
+                msg_box.setText("Are the volumes registered?")
+                msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                msg_box.setDefaultButton(QMessageBox.StandardButton.Yes)
+                ret = msg_box.exec()
+                #if selected yes, return False
+                if ret == QMessageBox.StandardButton.Yes:
+                    return False
+                else:
+                    return True
+
             volume2 = self.request_gui(flip_ask, volume2)
+
+            register = self.request_gui(registered_ask)
 
             i,j =self.request_gui(self.get_candidates,volume1.shape[0],volume2.shape[0],show=False)
 
-            # Select thresholds
-            user_inputs = self.request_gui(self.get_thresholds,volume1,volume2,i,j)
+            if register:
+
+                # Select thresholds
+                user_inputs = self.request_gui(self.get_thresholds,volume1,volume2,i,j)
+            
+            else:
+
+                user_inputs = {'Main':(0,0)}
 
             if len(user_inputs) > 0:
 
                 #main
                 # Create a progress window
 
-                self.update_progress(0, "Shifting Volume")
-                #get shift
-                shift = user_inputs['Main']
-                #shift volume
-                volume2 = self.shift_volume_concurrent(volume2,shift,progress_window=self)
+                if register:
+
+                    self.update_progress(0, "Shifting Volume")
+                    #get shift
+                    shift = user_inputs['Main']
+                    #shift volume
+                    volume2 = self.shift_volume_concurrent(volume2,shift,progress_window=self)
                 
                 concatenated = self.concatenate_volumes(volume1,volume2,i,j)
 
