@@ -77,7 +77,7 @@ class Plugin(BasePlugin):
                 else:
                     return volume2
             
-            self.request_gui(flip_ask, top_full)
+            top_full = self.request_gui(flip_ask, top_full)
 
             roi = self.get_roi(bot_full) # x0,x1,y0,y1
 
