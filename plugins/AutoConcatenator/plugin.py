@@ -85,33 +85,31 @@ class Plugin(BasePlugin):
                 else:
                     return volume2
             
+            def registered_ask():
+
+                #creat a window that asks the user if the volumes are registered
+                msg_box = QMessageBox(self.main_window)
+                msg_box.setText("Are the volumes registered?")
+                msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                msg_box.setDefaultButton(QMessageBox.StandardButton.Yes)
+                ret = msg_box.exec()
+                #if selected yes, return False
+                if ret == QMessageBox.StandardButton.Yes:
+                    return False
+                else:
+                    return True
+            
             self.request_gui(flip_ask, volume2)
+
+            register = self.request_gui(registered_ask)
 
             length, resolution, start, end, search_range = self.request_gui(self.get_info, volume1.shape[0],volume2.shape[0],show=False)
 
             print(f"length: {length}, resolution: {resolution}, start: {start}, end: {end}")
 
-            rois = [self.request_gui(self.get_roi,volume1)]
-
-            def plot_middle():
-
-                #plot the middle slice of the first volume with roi applied to it
-                middle = volume1[volume1.shape[0]//2]
-                middle = middle.copy()
-                middle[middle<120] = 0
-                y0,x0,y1,x1 = rois[0]
-                middle = middle[min(x0,x1):max(x0,x1),min(y0,y1):max(y0,y1)]
-                plt.imshow(middle,cmap='gray')
-                plt.title('middle slice of volume 1 with roi applied to it')
-                plt.show()
-
-
-            self.request_gui(plot_middle)
-
-            
+            rois = self.get_volume_bbox(volume1)
 
             distancias_concurrente = self.compare_slices_concurrent_ai(volume1,volume2,length,resolution,start =start, end =end, rois=rois, n_chunks = 1, range_slices=search_range)
-
 
             #get the minimum distance of distancias_concurrente
             min_distance = np.argmin(distancias_concurrente[:,2])
@@ -125,12 +123,14 @@ class Plugin(BasePlugin):
 
             if len([1]) > 0:
 
-                # Create a progress window
-                middle = volume1[i]
+                if register:
 
-                volume2 = self.stackreg(volume2[j:],middle,progress_window=self)
+                    # Create a progress window
+                    middle = volume1[i]
 
-                self.update_progress(100, "Registering Volume",1,1)
+                    volume2 = self.stackreg(volume2[j:],middle,progress_window=self)
+
+                    self.update_progress(100, "Registering Volume",1,1)
 
                 concatenated = self.concatenate_volumes(volume1,volume2,i,0)
 
@@ -492,7 +492,6 @@ class Plugin(BasePlugin):
         #print(indexes)
 
         #find candidates
-
         indexes = self.find_candidates_volume(volume1,volume2,length,resolution,indexes,range=range_slices)
 
         #get the first and last candidate
@@ -678,13 +677,6 @@ class Plugin(BasePlugin):
             distances.append(distances_aux[min_distance])
 
         return np.array(distances)
-    
-    def get_roi(self,volume):
-        from utils.volume_utils import virtual_sequence_bbox as vsb
-        #get the bbox of the volume
-        bbox = vsb(volume)
-        #get the roi of the volume
-        return bbox[1]
 
     def find_candidates_volume(self,vol1,vol2,length,resolution,indexes,range=200):
 
