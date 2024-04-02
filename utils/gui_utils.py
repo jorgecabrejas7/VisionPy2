@@ -41,7 +41,7 @@ def virtual_sequence_bbox(zarr_array: zarr.Array) -> Tuple[int, List[int]]:
         try:
             # Accessing the slice from the Zarr array
             slice_data = zarr_array[current_slice, :, :]
-            img.set_data(slice_data)
+            img.set_data(slice_data, norm='linear')
             fig.canvas.toolbar.set_message(f"Slice: {current_slice}")
             fig.canvas.draw()
             update_dialog()
@@ -94,7 +94,7 @@ def virtual_sequence_bbox(zarr_array: zarr.Array) -> Tuple[int, List[int]]:
     # Setting up Matplotlib figure and axes
     fig, ax = plt.subplots()
     plt.subplots_adjust(bottom=0.2)
-    img = ax.imshow(zarr_array[current_slice, :, :], cmap="gray")
+    img = ax.imshow(zarr_array[current_slice, :, :], cmap="gray", norm='linear')
 
     # Rectangle selector
     toggle_selector = RectangleSelector(
@@ -114,6 +114,8 @@ def virtual_sequence_bbox(zarr_array: zarr.Array) -> Tuple[int, List[int]]:
     )
 
     slider.on_changed(lambda val: update_slice(val, img))
+
+    
 
     def key_press(event):
         """Handle key press events to navigate through slices."""
