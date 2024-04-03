@@ -132,7 +132,7 @@ class Plugin(BasePlugin):
 
                     self.update_progress(100, "Registering Volume",1,1)
 
-                concatenated = self.concatenate_volumes(volume1,volume2,i,0)
+                concatenated = self.concatenate_volumes(volume1,volume2,i,j)
 
                 # Check if a folder was selected
                 if save_path:

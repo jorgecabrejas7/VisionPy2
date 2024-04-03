@@ -79,19 +79,7 @@ class Plugin(BasePlugin):
 
             i,j =self.request_gui(self.get_candidates,volume1.shape[0],volume2.shape[0],show=False)
 
-            # Select thresholds
-            user_inputs = self.request_gui(self.get_thresholds,volume1,volume2,i,j)
-
-            if len(user_inputs) > 0:
-
-                #main
-                # Create a progress window
-
-                self.update_progress(0, "Shifting Volume")
-                #get shift
-                shift = user_inputs['Main']
-                #shift volume
-                volume2 = self.shift_volume_concurrent(volume2,shift,progress_window=self)
+            if 1 > 0:
                 
                 concatenated = self.concatenate_volumes(volume1,volume2,i,j)
 

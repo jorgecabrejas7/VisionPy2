@@ -99,7 +99,7 @@ class Plugin(BasePlugin):
                 else:
                     return True
             
-            self.request_gui(flip_ask, volume2)
+            volume2 = self.request_gui(flip_ask, volume2)
 
             register = self.request_gui(registered_ask)
 
@@ -108,6 +108,10 @@ class Plugin(BasePlugin):
             print(f"length: {length}, resolution: {resolution}, start: {start}, end: {end}")
 
             distancias_concurrente = self.compare_slices_concurrent_ai(volume1,volume2,length,resolution,start =start, end =end, n_chunks = 1, range_slices=search_range)
+
+            #print distancias_concurrente where i = 3646
+            print(distancias_concurrente[np.where(distancias_concurrente[:,0] == 3646)])
+            
 
             #get the minimum distance of distancias_concurrente
             min_distance = np.argmin(distancias_concurrente[:,2])
@@ -461,11 +465,12 @@ class Plugin(BasePlugin):
 
             # Calculate new size that can be divided by the square size
             height, width = image.shape
-            new_height = (height // square_size) * square_size
-            new_width = (width // square_size) * square_size
+            pad_height = square_size - (height % square_size) if height % square_size != 0 else 0
+            pad_width = square_size - (width % square_size) if width % square_size != 0 else 0
 
-            # Crop image to new size
-            resized_image = image[:new_height, :new_width]
+            # Pad image with zeros
+            resized_image = np.pad(image, ((0, pad_height), (0, pad_width)))
+
 
             # Crop image into squares
             cropped_images = []
@@ -523,6 +528,8 @@ class Plugin(BasePlugin):
         last = indexes[-1][1]
 
         print(first,last)
+
+        print(indexes)
         
         images1 = [volume1[i] for i in range(start,end)]
         images2 = [volume2[i] for i in range(first,last)]
@@ -543,7 +550,7 @@ class Plugin(BasePlugin):
         self.update_progress(0, "Preparing arguments")
 
         #prepare args for compare_features
-        args = [(features1[i-start-1],features2[j-first-1],i,j) for i,j in indexes]
+        args = [(features1[i-start],features2[j-first],i,j) for i,j in indexes]
 
         # Create a thread pool executor
         with ThreadPoolExecutor() as executor:
