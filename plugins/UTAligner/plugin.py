@@ -101,7 +101,7 @@ class Plugin(BasePlugin):
         middle_slice = middle_slice[middle_slice.shape[0]//4:middle_slice.shape[0]//4*3,:]
 
         #otsu threshold
-        threshold_value = threshold_otsu(middle_slice[middle_slice > 10])
+        threshold_value = threshold_otsu(middle_slice)
         print('threshold value is: ', threshold_value)
         thresholded_slice = middle_slice > threshold_value
 
