@@ -283,6 +283,7 @@ class BasePlugin(QObject):
         """
         return self.request_gui(virtual_sequence_bbox, zarr_array=zarr_array)
 
+
     def select_slice(self, zarr_array: zarr.Array) -> int:
         """
         Selects a slice from the given Zarr array.
