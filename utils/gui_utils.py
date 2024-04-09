@@ -95,7 +95,7 @@ def virtual_sequence_bbox(zarr_array: zarr.Array) -> Tuple[int, List[int]]:
     img = ax.imshow(zarr_array[current_slice, :, :], cmap="gray")
 
     # Rectangle selector
-    RectangleSelector(
+    selector = RectangleSelector(
         ax,
         onselect,
         useblit=True,

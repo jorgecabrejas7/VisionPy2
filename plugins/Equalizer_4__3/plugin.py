@@ -21,9 +21,6 @@ DEBUG = False
 
 
 class Plugin(BasePlugin):
-    def __init__(self, main_window, plugin_name):
-        super().__init__(main_window, plugin_name)
-
     def execute(self):
         # Update the function to integrate with dask for parallel processing
         try:

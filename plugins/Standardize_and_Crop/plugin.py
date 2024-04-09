@@ -133,12 +133,12 @@ class Plugin(BasePlugin):
                     slice, self.target_mean, self.target_std
                 )
                 slice_8bit = convert_to_8bit(standardized_slice)
-                eq_slice = np.empty_like(slice_8bit)
-                cv2.intensity_transform.autoscaling(slice_8bit, eq_slice)
+                # eq_slice = np.empty_like(slice_8bit)
+                # cv2.intensity_transform.autoscaling(slice_8bit, eq_slice)
 
                 # Put the processed slice into the saving queue
-                saving_queue.put((i, eq_slice, name))
-                del slice, standardized_slice, slice_8bit, eq_slice
+                saving_queue.put((i, slice_8bit, name))
+                del slice, standardized_slice, slice_8bit # eq_slice
                 processing_queue.task_done()
             except queue.Empty:
                 continue
