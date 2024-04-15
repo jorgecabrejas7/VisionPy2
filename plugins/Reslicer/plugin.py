@@ -96,14 +96,14 @@ class Plugin(BasePlugin):
 
     def reslice(self, volume, name):
         if name == "Top":
-            resliced = np.transpose(volume, (1, 0, 2))[::-1, :, :]
+            resliced = np.transpose(volume, (1, 0, 2))
             resliced = np.flip(resliced, axis=1)
         elif name == "Left":
             resliced = np.transpose(volume, (2, 1, 0))
             resliced = np.flip(resliced, axis=2)
         elif name == "Right":
             resliced = np.transpose(volume, (2, 1, 0))[::-1, :, :]
-        elif name == "Bottom":
-            resliced = np.transpose(volume, (1, 0, 2))
+        elif name == "Bot":
+            resliced = np.transpose(volume, (1, 0, 2))[::-1, :, :]
 
         return resliced
