@@ -212,3 +212,74 @@ def virtual_sequence_slice(zarr_array: zarr.Array) -> int:
     dlg.exec()
 
     return current_slice
+
+
+def get_bbox(zarr_array: zarr.Array) -> Tuple[List[int]]:
+    """
+    Processes a single Zarr array slice, displaying the slice and allowing the user to select a
+    bounding box on it. Captures the details via a dialog box.
+
+    Args:
+    zarr_array (zarr.Array): Zarr array representing image slices.
+    slice_index (int): Index of the slice to display and interact with.
+
+    Returns:
+    Tuple[List[int]]: Bounding box coordinates on the given slice.
+    """
+    global bbox, bbox_label
+    bbox = None
+    bbox_label = None
+
+    def onselect(eclick, erelease):
+        """Callback for the rectangle selector to update the bounding box."""
+        global bbox
+        bbox = [int(eclick.xdata), int(eclick.ydata), int(erelease.xdata), int(erelease.ydata)]
+        update_dialog()
+
+    def update_dialog():
+        """Update the dialog to show the current bounding box."""
+        global bbox_label
+        if bbox_label is not None:
+            bbox_text = f"Bounding Box: {bbox}" if bbox else "No Bounding Box Selected"
+            bbox_label.setText(bbox_text)
+
+    def capture_bbox_and_return() -> Tuple[List[int]]:
+        """Capture the bounding box and return the results."""
+        global bbox_label
+        dlg = QDialog()
+        dlg.setWindowTitle("Bounding Box Values")
+
+        layout = QVBoxLayout()
+        bbox_label = QLabel("Bounding Box: {}".format(bbox) if bbox else "No Bounding Box Selected")
+        update_dialog()
+        layout.addWidget(bbox_label)
+
+        ok_button = QPushButton("OK", dlg)
+        ok_button.clicked.connect(lambda: (dlg.accept(), plt.close(fig)))
+        layout.addWidget(ok_button)
+
+        dlg.setLayout(layout)
+        dlg.show()
+
+        plt.show(block=False)
+        dlg.exec()
+
+        return bbox
+
+    # Setting up Matplotlib figure and axes
+    fig, ax = plt.subplots()
+    img = ax.imshow(zarr_array, cmap="gray", norm='linear')
+
+    # Rectangle selector for bounding box selection
+    selector = RectangleSelector(
+        ax,
+        onselect,
+        useblit=True,
+        button=[1],
+        minspanx=5,
+        minspany=5,
+        spancoords="pixels",
+        interactive=True
+    )
+
+    return capture_bbox_and_return()

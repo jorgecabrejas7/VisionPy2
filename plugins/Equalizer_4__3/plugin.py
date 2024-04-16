@@ -17,7 +17,7 @@ import matplotlib.patches as patches
 import time
 from PyQt6.QtWidgets import QMessageBox
 
-DEBUG = False
+DEBUG = True
 
 
 class Plugin(BasePlugin):
@@ -35,15 +35,15 @@ class Plugin(BasePlugin):
                 return
 
             volume = read_virtual_sequence(folder_path)
-            result = self.request_gui(
+            self.result = self.request_gui(
                 create_equalization_settings_dialog(self.main_window)
             )
-            if not result:
+            if not self.result:
                 self.prompt_error("No parameters selected")
                 self.finished.emit(self)
                 return
 
-            print(f"{result = }")
+            print(f"{self.result = }")
 
             file_settings = self.request_gui(
                 create_file_settings_dialog(self.main_window)
@@ -61,78 +61,84 @@ class Plugin(BasePlugin):
             if file_settings == "apply":
                 mode = "r+"
 
-            if result["start_slice"] < 1 or result["end_slice"] > volume.shape[0]:
+            if (
+                self.result["start_slice"] < 1
+                or self.result["end_slice"] > volume.shape[0]
+            ):
                 self.prompt_error("Slice out of bounds")
                 self.finished.emit(self)
                 return
 
-            if not result["fix_mat_ROI"]:
-                mat_roi_path = self.select_file("Select MAT Mask")
-                if not mat_roi_path:
-                    self.prompt_error("No MAT Mask selected")
-                    self.finished.emit(self)
-                    return
-                mat_roi = read_virtual_sequence(mat_roi_path)
+            # Handle ROI selection
+            mat_roi = self.handle_roi_selection(volume, "mat")
+            bkg_roi = self.handle_roi_selection(volume, "bkg")
+            # if not self.result["fix_mat_ROI"]:
+            #     mat_roi_path = self.select_file("Select MAT Mask")
+            #     if not mat_roi_path:
+            #         self.prompt_error("No MAT Mask selected")
+            #         self.finished.emit(self)
+            #         return
+            #     mat_roi = read_virtual_sequence(mat_roi_path)
 
-            else:
-                mat_roi_path = self.select_file("Select MAT ROI")
-                if not mat_roi_path:
-                    self.prompt_error("No MAT ROI selected")
-                    self.finished.emit(self)
-                    return
-                roi = read_roi_file(mat_roi_path)
-                aux = list(roi.values())[0]
-                print(f"roi_mat: {roi}")
-                bbox_mat = (
-                    aux["left"],
-                    aux["top"],
-                    aux["left"] + aux["width"],
-                    aux["top"] + aux["height"],
-                )
-                mat_roi = volume[0].copy()
-                mat_roi[:, :] = 0
-                mat_roi[bbox_mat[1] : bbox_mat[3], bbox_mat[0] : bbox_mat[2]] = 1
-                mat_roi = mat_roi.astype(bool)
+            # else:
+            #     mat_roi_path = self.select_file("Select MAT ROI")
+            #     if not mat_roi_path:
+            #         self.prompt_error("No MAT ROI selected")
+            #         self.finished.emit(self)
+            #         return
+            #     roi = read_roi_file(mat_roi_path)
+            #     aux = list(roi.values())[0]
+            #     print(f"roi_mat: {roi}")
+            #     bbox_mat = (
+            #         aux["left"],
+            #         aux["top"],
+            #         aux["left"] + aux["width"],
+            #         aux["top"] + aux["height"],
+            #     )
+            #     mat_roi = volume[0].copy()
+            #     mat_roi[:, :] = 0
+            #     mat_roi[bbox_mat[1] : bbox_mat[3], bbox_mat[0] : bbox_mat[2]] = 1
+            #     mat_roi = mat_roi.astype(bool)
 
-            if not result["fix_bkg_ROI"]:
-                bkg_roi_path = self.select_file("Select BKG Mask")
-                if not bkg_roi_path:
-                    self.prompt_error("No BKG Mask selected")
-                    self.finished.emit(self)
-                    return
-                bkg_roi = read_virtual_sequence(mat_roi_path)
+            # if not self.result["fix_bkg_ROI"]:
+            #     bkg_roi_path = self.select_file("Select BKG Mask")
+            #     if not bkg_roi_path:
+            #         self.prompt_error("No BKG Mask selected")
+            #         self.finished.emit(self)
+            #         return
+            #     bkg_roi = read_virtual_sequence(mat_roi_path)
 
-            else:
-                bkg_roi_path = self.select_file("Select BKG ROI")
-                if not bkg_roi_path:
-                    self.prompt_error("No BKG ROI selected")
-                    self.finished.emit(self)
-                    return
-                roi = read_roi_file(bkg_roi_path)
-                print(f"roi_bkg: {roi}")
-                aux = list(roi.values())[0]
-                bbox_bkg = (
-                    aux["left"],
-                    aux["top"],
-                    aux["left"] + aux["width"],
-                    aux["top"] + aux["height"],
-                )
-                bkg_roi = volume[0].copy()
-                bkg_roi[:, :] = 0
-                bkg_roi[bbox_bkg[1] : bbox_bkg[3], bbox_bkg[0] : bbox_bkg[2]] = 1
-                bkg_roi = bkg_roi.astype(bool)
+            # else:
+            #     bkg_roi_path = self.select_file("Select BKG ROI")
+            #     if not bkg_roi_path:
+            #         self.prompt_error("No BKG ROI selected")
+            #         self.finished.emit(self)
+            #         return
+            #     roi = read_roi_file(bkg_roi_path)
+            #     print(f"roi_bkg: {roi}")
+            #     aux = list(roi.values())[0]
+            #     bbox_bkg = (
+            #         aux["left"],
+            #         aux["top"],
+            #         aux["left"] + aux["width"],
+            #         aux["top"] + aux["height"],
+            #     )
+            #     bkg_roi = volume[0].copy()
+            #     bkg_roi[:, :] = 0
+            #     bkg_roi[bbox_bkg[1] : bbox_bkg[3], bbox_bkg[0] : bbox_bkg[2]] = 1
+            #     bkg_roi = bkg_roi.astype(bool)
 
             self.update_progress(0, "Processing...", 0, volume.shape[0])
             for slice_index in range(volume.shape[0]):
                 try:
                     slice_mat = (
                         bool(mat_roi[slice_index])
-                        if not result["fix_mat_ROI"]
+                        if not self.result["fix_mat_ROI"]
                         else mat_roi.copy()
                     )
                     slice_bkg = (
                         bool(bkg_roi[slice_index])
-                        if not result["fix_bkg_ROI"]
+                        if not self.result["fix_bkg_ROI"]
                         else bkg_roi.copy()
                     )
 
@@ -144,11 +150,11 @@ class Plugin(BasePlugin):
 
                     # Get material histogram
                     mat_hist, mat_bins = np.histogram(
-                        current_slice[slice_mat], bins=256, range=(mat_min, mat_max)
+                        current_slice[slice_mat], bins=256, #range=(mat_min, mat_max)
                     )
 
                     max_mat = np.max(mat_hist)
-                    threshold_mat = max_mat * result["t_mat"]
+                    threshold_mat = max_mat * self.result["t_mat"]
                     bin_centers = (mat_bins[:-1] + mat_bins[1:]) / 2
                     mask = mat_hist > threshold_mat
 
@@ -166,7 +172,7 @@ class Plugin(BasePlugin):
                     )
 
                     max_bkg = np.max(bkg_hist)
-                    threshold_bkg = max_bkg * result["t_bkg"]
+                    threshold_bkg = max_bkg * self.result["t_bkg"]
                     bin_centers = (bkg_bins[:-1] + bkg_bins[1:]) / 2
                     mask = bkg_hist > threshold_bkg
 
@@ -189,27 +195,32 @@ class Plugin(BasePlugin):
                     X = equalX(
                         mat_val,
                         bkg_val,
-                        result["ref_mat_original"],
-                        result["ref_bkg_original"],
+                        self.result["ref_mat_original"],
+                        self.result["ref_bkg_original"],
                     )
                     Y = equalY(
                         mat_val,
                         bkg_val,
-                        result["ref_mat_original"],
-                        result["ref_bkg_original"],
+                        self.result["ref_mat_original"],
+                        self.result["ref_bkg_original"],
                     )
+
                     X1, Y1 = X, Y
                     last_X, last_Y = X, Y
-                    while delta_avg > result["delta"] and n_it < result["max_it"]:
+                    
+                    while (
+                        delta_avg > self.result["delta"]
+                        and n_it < self.result["max_it"]
+                    ):
                         print(
                             f"Slice {slice_index} - Iteration {n_it} - {delta_avg = }"
                         )
                         slice_8bit = adjust_brightness_contrast(current_slice, X, Y)
-                        if slice_index == result["start_slice"]:
+                        if slice_index == self.result["start_slice"]:
                             X_s = X1
                             Y_s = Y1
 
-                        if slice_index == result["end_slice"]:
+                        if slice_index == self.result["end_slice"]:
                             X_f = X
                             Y_f = Y
 
@@ -224,7 +235,7 @@ class Plugin(BasePlugin):
                         )
 
                         max_mat_8bit = np.max(mat_hist_8bit)
-                        threshold_mat_8bit = max_mat_8bit * result["t_mat"]
+                        threshold_mat_8bit = max_mat_8bit * self.result["t_mat"]
                         bin_centers_8bit = (mat_bins_8bit[:-1] + mat_bins_8bit[1:]) / 2
                         mask_mat_8bit = mat_hist_8bit > threshold_mat_8bit
 
@@ -280,7 +291,7 @@ class Plugin(BasePlugin):
                         )
 
                         max_bkg_8bit = np.max(bkg_hist_8bit)
-                        threshold_bkg_8bit = max_bkg_8bit * result["t_bkg"]
+                        threshold_bkg_8bit = max_bkg_8bit * self.result["t_bkg"]
                         bin_centers_8bit = (bkg_bins_8bit[:-1] + bkg_bins_8bit[1:]) / 2
                         mask_bkg_8bit = bkg_hist_8bit > threshold_bkg_8bit
 
@@ -331,14 +342,14 @@ class Plugin(BasePlugin):
                                 f"\tbkg_val_8bit = weighted_sum_8bit / total_count_8bit  = {weighted_sum_8bit} / {total_count_8bit} if {total_count_8bit} > 0 else 0 = {bkg_val_8bit}"
                             )
 
-                        delta_mat = result["ref_mat_original"] - mat_val_8bit
-                        delta_bkg = result["ref_bkg_original"] - bkg_val_8bit
+                        delta_mat = self.result["ref_mat_original"] - mat_val_8bit
+                        delta_bkg = self.result["ref_bkg_original"] - bkg_val_8bit
                         if DEBUG:
                             print(
-                                f"\tdelta_mat = result['ref_mat_original'] - mat_val_8bit = {result['ref_mat_original']} - {mat_val_8bit} = {delta_mat}"
+                                f"\tdelta_mat = self.result['ref_mat_original'] - mat_val_8bit = {self.result['ref_mat_original']} - {mat_val_8bit} = {delta_mat}"
                             )
                             print(
-                                f"\tdelta_bkg = result['ref_bkg_original'] - bkg_val_8bit = {result['ref_bkg_original']} - {bkg_val_8bit} = {delta_bkg}"
+                                f"\tdelta_bkg = self.result['ref_bkg_original'] - bkg_val_8bit = {self.result['ref_bkg_original']} - {bkg_val_8bit} = {delta_bkg}"
                             )
                         delta_avg = (abs(delta_mat) + abs(delta_bkg)) / 2
 
@@ -362,19 +373,23 @@ class Plugin(BasePlugin):
 
                     # Apply equalization to slice
                     print(f"Slice {slice_index} - Iteration {n_it} - {delta_avg = }")
-                    if delta_avg > result["delta"]:
+                    if delta_avg > self.result["delta"]:
                         print(
                             "Warning: Maximum number of iterations reached. Results may not be accurate. Using last slice X and Y"
                         )
                         X1, Y1 = last_X, last_Y
-                    if result["start_slice"] <= slice_index <= result["end_slice"]:
+                    if (
+                        self.result["start_slice"]
+                        <= slice_index
+                        <= self.result["end_slice"]
+                    ):
                         X, Y = X1, Y1
                         print(f"{X = } {Y = }")
                         slice_8bit = adjust_brightness_contrast(current_slice, X, Y)
                     else:
                         X, Y = (
                             (X_s, Y_s)
-                            if slice_index < result["start_slice"]
+                            if slice_index < self.result["start_slice"]
                             else (X_f, Y_f)
                         )
                         slice_8bit = adjust_brightness_contrast(current_slice, X, Y)
@@ -407,6 +422,68 @@ class Plugin(BasePlugin):
         except Exception as e:
             traceback.print_exc()
             self.error.emit(str(e), self.get_name())
+
+    def handle_roi_selection(self, volume, roi_type):
+        """
+        Handles the ROI selection by determining if the ROI should be manually defined or loaded from a predefined mask,
+        based on user configuration.
+
+        Parameters:
+            volume (ndarray): The 3D volume data which the ROI will be applied to.
+            roi_type (str): Specifies the type of ROI, either 'mat' for material or 'bkg' for background.
+
+        Returns:
+            ndarray: A boolean mask representing the ROI, or None if an error occurs.
+        """
+        # Check if the ROI should be manually selected or loaded from a predefined mask
+        fixed_roi = self.result[f"fix_{roi_type}_ROI"]
+
+        if fixed_roi:
+            # Manually select the ROI
+            roi_mask = self.select_roi_manually(volume, roi_type)
+            if roi_mask is None:
+                self.prompt_error(f"No {roi_type.upper()} ROI selected manually")
+                return None
+            return roi_mask
+        else:
+            # Load ROI from a predefined mask file
+            roi_path = self.select_file(f"Select {roi_type.upper()} Mask")
+            if not roi_path:
+                self.prompt_error(f"No {roi_type.upper()} Mask selected")
+                return None
+            return self.read_virtual_sequence(roi_path)
+
+    def process_volume():
+        pass
+
+
+    def select_roi_manually(self, volume, roi_type):
+        """
+        Function to be implemented that allows user to manually select an ROI.
+
+        Parameters:
+            volume (ndarray): The volume from which a slice is displayed for ROI selection.
+            roi_type (str): 'mat' for material or 'bkg' for background, used for guiding the user.
+
+        Returns:
+            ndarray: A boolean mask representing the manually selected ROI.
+        """
+
+        # Compute the maximum intensity projection along the z-axis
+
+        if roi_type == "mat":
+            projection = np.max(volume[self.result["start_slice"]:self.result["end_slice"]], axis=0)
+
+        elif roi_type == "bkg":
+            projection = np.min(volume[self.result["start_slice"]:self.result["end_slice"]], axis=0)
+
+        roi = self.get_image_bbox(projection)
+
+        x1, y1, x2, y2 = roi
+        roi = np.zeros_like(volume[0])
+        roi[y1:y2, x1:x2] = 1
+        roi = roi.astype(bool)
+        return roi
 
 
 def show_elapsed_time(start, volume):

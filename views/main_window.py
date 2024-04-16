@@ -238,7 +238,8 @@ class MainWindow(QMainWindow):
     def cleanup_plugin(self, plugin_name, plugin_instance=None):
         logging.info(f"Cleaning up {plugin_name}")
         thread = self.threads.get(plugin_name)
-        id = plugin_instance.uuid
+        if plugin_instance is not None:
+            id = plugin_instance.uuid
         if thread:
             thread.quit()
             thread.wait()
