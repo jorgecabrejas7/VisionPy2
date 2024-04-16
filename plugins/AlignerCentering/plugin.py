@@ -7,6 +7,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from plugins.Aligner import aligner as alg
+import plugins.Centering.centering as cnt
 import logging
 
 
@@ -91,11 +92,37 @@ class Plugin(BasePlugin):
 
                     volume = np.transpose(volume, (2, 0, 1))
 
+                #######CENTERING######
+                
+                # Select thresholds
+                user_inputs = self.request_gui(cnt.get_thresholds, self, volume)
+
+                # Perform operations on the selected file based on user inputs
+                if len(user_inputs) > 0:
+                    # main
+                    # Create a progress window
+
+                    self.update_progress(0, "Centering Volume")
+                    #get shift
+                    shift = user_inputs['Main']
+                    #shift volume
+                    volume = cnt.shift_volume_concurrent(volume,shift,progress_window=self)
+                    
+                    #select dimensions for cropping
+                    user_inputs2 = self.request_gui(cnt.get_dimensions,self, volume)
+
+                    if user_inputs2:
+                        # cropping
+
+                        #cropping
+
+                        volume = cnt.crop_volume(volume,user_inputs2['Main'][0],user_inputs2['Main'][1])
+
                 # Check if a folder was selected
                 if save_path:
                     # Create a progress window
                     # Save the rotated volume
-                    self.update_progress(0, "Saving Rotated Volume")
+                    self.update_progress(0, "Saving Rotated and centered Volume")
                     image_sequence.write_sequence2(
                         save_path,
                         os.path.basename(save_path),
