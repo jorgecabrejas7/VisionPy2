@@ -7,12 +7,7 @@ import matplotlib.pyplot as plt
 import tifffile as tiff
 from utils import image_sequence
 import os
-<<<<<<< HEAD
-
-
-=======
 import plugins.Reslicer.reslicer as rsl
->>>>>>> Reslicer
 # Define a class that implements the PluginInterface
 class Plugin(BasePlugin):
     # Prompt the user to select a file
