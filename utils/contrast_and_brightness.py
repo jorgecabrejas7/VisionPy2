@@ -58,7 +58,8 @@ def adjust_brightness_contrast(
         raise ValueError("Input must be a NumPy array.")
 
     # Clip and rescale the intensity values of the image
-    clipped_image = np.clip(image, min_val, max_val)
-    adjusted_image = (clipped_image - min_val) / (max_val - min_val) * 255
+    
+    adjusted_image = (image - min_val) / (max_val - min_val) * 255
+    clipped_image = np.clip(adjusted_image, 0, 255)
 
-    return adjusted_image.astype(np.uint8)
+    return clipped_image.astype(np.uint8)

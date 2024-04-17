@@ -219,3 +219,64 @@ def create_file_settings_dialog(parent: QMainWindow):
     return get_file_settings
 
 
+# create a dialog that ask the user for a star and end slice
+def create_slice_range_dialog(parent: QMainWindow):
+    def get_slice_range():
+        class SliceRangeDialog(QDialog):
+            def __init__(self, parent=None):
+                super().__init__(parent)
+                self.setWindowTitle("Slice Range for Z-Projection")
+                self.create_layout()
+
+            def create_layout(self):
+                layout = QVBoxLayout(self)
+                form_layout = QFormLayout()
+
+                self.start_slice_edit = QLineEdit("1")
+                self.start_slice_edit.setValidator(QIntValidator())
+                form_layout.addRow("Start slice:", self.start_slice_edit)
+
+                self.end_slice_edit = QLineEdit("4425")
+                self.end_slice_edit.setValidator(QIntValidator())
+                form_layout.addRow("End slice:", self.end_slice_edit)
+
+                layout.addLayout(form_layout)
+
+                ok_button = QPushButton("OK")
+                ok_button.clicked.connect(self.validate_and_accept)
+                layout.addWidget(ok_button)
+
+            def validate_and_accept(self):
+                if self.validate_inputs():
+                    self.accept()
+
+            def validate_inputs(self):
+                if not self.validate_field(self.start_slice_edit, "Start slice", int):
+                    return False
+                if not self.validate_field(self.end_slice_edit, "End slice", int):
+                    return False
+                return True
+
+            def validate_field(self, field, name, data_type):
+                try:
+                    data_type(field.text())
+                    return True
+                except ValueError:
+                    QMessageBox.warning(
+                        self, "Input Error", f"Invalid input for {name}."
+                    )
+                    return False
+
+            def get_values(self):
+                return {
+                    "start_slice": int(self.start_slice_edit.text()),
+                    "end_slice": int(self.end_slice_edit.text()),
+                }
+
+        dialog = SliceRangeDialog()
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            return dialog.get_values()
+        else:
+            return None
+
+    return get_slice_range

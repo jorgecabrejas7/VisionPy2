@@ -4,18 +4,49 @@ from base_plugin import BasePlugin
 from plugins.Equalizer_4__3.tools import (
     create_equalization_settings_dialog,
     create_file_settings_dialog,
+    create_slice_range_dialog,
     equalX,
     equalY,
 )
 import traceback
 from utils.image_sequence import read_virtual_sequence
-from utils.contrast_and_brightness import adjust_brightness_contrast
+from utils.bit_depth import convert_to_8bit
+from utils.contrast_and_brightness import adjust_brightness_contrast, auto_adjust
 import tifffile
-from read_roi import read_roi_file
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import time
-from PyQt6.QtWidgets import QMessageBox
+from PyQt6.QtWidgets import QMessageBox, QDialog, QLineEdit
+import logging
+import os
+
+#create a logger that writes to a file called eq.log using python logging
+# Create or get the logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)  # Set the debug level or higher as needed
+
+log_file_path = os.path.join('./', 'eq.log')
+print(f"Logging to: {log_file_path}")  # Debug print to check path
+
+try:
+    # Create a file handler which logs even debug messages
+    fh = logging.FileHandler(log_file_path, mode="w")
+    fh.setLevel(logging.DEBUG)
+
+    # Create formatter and add it to the handler
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(threadName)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    fh.setFormatter(formatter)
+
+    # Add the handler to the logger
+    logger.addHandler(fh)
+
+    logger.debug('This is a debug message.')  # First message to trigger file creation
+
+except PermissionError:
+    print("Error: Permission denied to write to the log file.")
+except Exception as e:
+    print(f"An error occurred: {e}")
+
 
 DEBUG = True
 
@@ -43,7 +74,7 @@ class Plugin(BasePlugin):
                 self.finished.emit(self)
                 return
 
-            print(f"{self.result = }")
+            logger.debug(f"{self.result = }")
 
             file_settings = self.request_gui(
                 create_file_settings_dialog(self.main_window)
@@ -53,7 +84,7 @@ class Plugin(BasePlugin):
                 self.finished.emit(self)
                 return
 
-            print(f"{file_settings = }")
+            logger.debug(f"{file_settings = }")
 
             if file_settings == "duplicate":
                 mode = "r"
@@ -72,64 +103,11 @@ class Plugin(BasePlugin):
             # Handle ROI selection
             mat_roi = self.handle_roi_selection(volume, "mat")
             bkg_roi = self.handle_roi_selection(volume, "bkg")
-            # if not self.result["fix_mat_ROI"]:
-            #     mat_roi_path = self.select_file("Select MAT Mask")
-            #     if not mat_roi_path:
-            #         self.prompt_error("No MAT Mask selected")
-            #         self.finished.emit(self)
-            #         return
-            #     mat_roi = read_virtual_sequence(mat_roi_path)
-
-            # else:
-            #     mat_roi_path = self.select_file("Select MAT ROI")
-            #     if not mat_roi_path:
-            #         self.prompt_error("No MAT ROI selected")
-            #         self.finished.emit(self)
-            #         return
-            #     roi = read_roi_file(mat_roi_path)
-            #     aux = list(roi.values())[0]
-            #     print(f"roi_mat: {roi}")
-            #     bbox_mat = (
-            #         aux["left"],
-            #         aux["top"],
-            #         aux["left"] + aux["width"],
-            #         aux["top"] + aux["height"],
-            #     )
-            #     mat_roi = volume[0].copy()
-            #     mat_roi[:, :] = 0
-            #     mat_roi[bbox_mat[1] : bbox_mat[3], bbox_mat[0] : bbox_mat[2]] = 1
-            #     mat_roi = mat_roi.astype(bool)
-
-            # if not self.result["fix_bkg_ROI"]:
-            #     bkg_roi_path = self.select_file("Select BKG Mask")
-            #     if not bkg_roi_path:
-            #         self.prompt_error("No BKG Mask selected")
-            #         self.finished.emit(self)
-            #         return
-            #     bkg_roi = read_virtual_sequence(mat_roi_path)
-
-            # else:
-            #     bkg_roi_path = self.select_file("Select BKG ROI")
-            #     if not bkg_roi_path:
-            #         self.prompt_error("No BKG ROI selected")
-            #         self.finished.emit(self)
-            #         return
-            #     roi = read_roi_file(bkg_roi_path)
-            #     print(f"roi_bkg: {roi}")
-            #     aux = list(roi.values())[0]
-            #     bbox_bkg = (
-            #         aux["left"],
-            #         aux["top"],
-            #         aux["left"] + aux["width"],
-            #         aux["top"] + aux["height"],
-            #     )
-            #     bkg_roi = volume[0].copy()
-            #     bkg_roi[:, :] = 0
-            #     bkg_roi[bbox_bkg[1] : bbox_bkg[3], bbox_bkg[0] : bbox_bkg[2]] = 1
-            #     bkg_roi = bkg_roi.astype(bool)
-
+            
             self.update_progress(0, "Processing...", 0, volume.shape[0])
             for slice_index in range(volume.shape[0]):
+                logging.debug("==========================================================================================================")
+                logging.debug(f"Processing slice {slice_index} of {volume.shape[0]}")
                 try:
                     slice_mat = (
                         bool(mat_roi[slice_index])
@@ -168,7 +146,7 @@ class Plugin(BasePlugin):
                     bkg_min = np.min(current_slice[slice_bkg])
 
                     bkg_hist, bkg_bins = np.histogram(
-                        current_slice[slice_bkg], bins=256, range=(bkg_min, bkg_max)
+                        current_slice[slice_bkg], bins=256, #range=(bkg_min, bkg_max)
                     )
 
                     max_bkg = np.max(bkg_hist)
@@ -212,15 +190,16 @@ class Plugin(BasePlugin):
                         delta_avg > self.result["delta"]
                         and n_it < self.result["max_it"]
                     ):
-                        print(
+                       
+                        logger.debug(
                             f"Slice {slice_index} - Iteration {n_it} - {delta_avg = }"
                         )
                         slice_8bit = adjust_brightness_contrast(current_slice, X, Y)
-                        if slice_index == self.result["start_slice"]:
+                        if slice_index == self.result["start_slice"] - 1:
                             X_s = X1
                             Y_s = Y1
 
-                        if slice_index == self.result["end_slice"]:
+                        if slice_index == self.result["end_slice"] - 1:
                             X_f = X
                             Y_f = Y
 
@@ -231,7 +210,7 @@ class Plugin(BasePlugin):
                         mat_hist_8bit, mat_bins_8bit = np.histogram(
                             slice_8bit[slice_mat],
                             bins=256,
-                            range=(mat_min_8bit, mat_max_8bit),
+                            #range=(mat_min_8bit, mat_max_8bit),
                         )
 
                         max_mat_8bit = np.max(mat_hist_8bit)
@@ -251,34 +230,30 @@ class Plugin(BasePlugin):
                             else 0
                         )
 
-                        if DEBUG:
+                        # if DEBUG:
                             # After calculating the mask
 
                             # Check the range of bin centers
-                            print(
-                                "Range of Bin Centers for Material (8-bit): Min =",
-                                np.min(bin_centers_8bit),
-                                ", Max =",
-                                np.max(bin_centers_8bit),
-                            )
-                            print("Number of True in Mask:", np.sum(mask_mat_8bit))
+                            # logger.debug(
+                            #     f"Range of Bin Centers for Material (8-bit): Min = {np.min(bin_centers_8bit)}, Max = {np.max(bin_centers_8bit)}"
+                            # )
+                            # logger.debug(f"Number of True in Mask: {np.sum(mask_mat_8bit)}")
 
-                            # Check if the mask is too restrictive
-                            if np.sum(mask_mat_8bit) == 0:
-                                print(
-                                    "Warning: No values passing the threshold. Check the threshold value."
-                                )
+                            # # Check if the mask is too restrictive
+                            # if np.sum(mask_mat_8bit) == 0:
+                            #     logger.debug(
+                            #         "Warning: No values passing the threshold. Check the threshold value."
+                            #     )
 
-                            # After calculating the weighted sum and total count
-                            if total_count_8bit == 0:
-                                print(
-                                    "Warning: Total count is zero. No values contributing to the histogram."
-                                )
-                            print("Threshold for Material:", threshold_mat_8bit)
-                            print(
-                                "Max Material Value (8-bit) used for threshold calculation:",
-                                max_mat_8bit,
-                            )
+                            # # After calculating the weighted sum and total count
+                            # if total_count_8bit == 0:
+                            #     logger.debug(
+                            #         "Warning: Total count is zero. No values contributing to the histogram."
+                            #     )
+                            # logger.debug(f"Threshold for Material: {threshold_mat_8bit}")
+                            # logger.debug(
+                            #     f"Max Material Value (8-bit) used for threshold calculation: {max_mat_8bit}"
+                            # )
 
                         # Repeat process for background
                         bkg_max_8bit = np.max(slice_8bit[slice_bkg])
@@ -287,7 +262,7 @@ class Plugin(BasePlugin):
                         bkg_hist_8bit, bkg_bins_8bit = np.histogram(
                             slice_8bit[slice_bkg],
                             bins=256,
-                            range=(bkg_min_8bit, bkg_max_8bit),
+                            #range=(bkg_min_8bit, bkg_max_8bit),
                         )
 
                         max_bkg_8bit = np.max(bkg_hist_8bit)
@@ -306,63 +281,27 @@ class Plugin(BasePlugin):
                             if total_count_8bit > 0
                             else 0
                         )
-                        # After calculating the mask
-                        if DEBUG:
-                            # Check the range of bin centers
-                            print(
-                                "Range of Bin Centers for Background (8-bit): Min =",
-                                np.min(bin_centers_8bit),
-                                ", Max =",
-                                np.max(bin_centers_8bit),
-                            )
-                            print("Number of True in Mask:", np.sum(mask_bkg_8bit))
-
-                            # Check if the mask is too restrictive
-                            if np.sum(mask_bkg_8bit) == 0:
-                                print(
-                                    "Warning: No values passing the threshold. Check the threshold value."
-                                )
-
-                            # After calculating the weighted sum and total count
-                            if total_count_8bit == 0:
-                                print(
-                                    "Warning: Total count is zero. No values contributing to the histogram."
-                                )
-                            print("Threshold for Background:", threshold_bkg_8bit)
-                            print(
-                                "Max Background Value (8-bit) used for threshold calculation:",
-                                max_bkg_8bit,
-                            )
-
-                        if DEBUG:
-                            print(
-                                f"\tmat_val_8bit = weighted_sum_8bit / total_count_8bit  = {weighted_sum_8bit} / {total_count_8bit} if {total_count_8bit} > 0 else 0 = {mat_val_8bit}"
-                            )
-                            print(
-                                f"\tbkg_val_8bit = weighted_sum_8bit / total_count_8bit  = {weighted_sum_8bit} / {total_count_8bit} if {total_count_8bit} > 0 else 0 = {bkg_val_8bit}"
-                            )
-
                         delta_mat = self.result["ref_mat_original"] - mat_val_8bit
                         delta_bkg = self.result["ref_bkg_original"] - bkg_val_8bit
                         if DEBUG:
-                            print(
-                                f"\tdelta_mat = self.result['ref_mat_original'] - mat_val_8bit = {self.result['ref_mat_original']} - {mat_val_8bit} = {delta_mat}"
+                            logger.debug(
+                                f"delta_mat = self.result['ref_mat_original'] - mat_val_8bit = {self.result['ref_mat_original']} - {mat_val_8bit} = {delta_mat}"
                             )
-                            print(
-                                f"\tdelta_bkg = self.result['ref_bkg_original'] - bkg_val_8bit = {self.result['ref_bkg_original']} - {bkg_val_8bit} = {delta_bkg}"
+                            logger.debug(
+                                f"delta_bkg = self.result['ref_bkg_original'] - bkg_val_8bit = {self.result['ref_bkg_original']} - {bkg_val_8bit} = {delta_bkg}"
                             )
                         delta_avg = (abs(delta_mat) + abs(delta_bkg)) / 2
-
+                        
                         X1_new = X1 - 0.25 * delta_bkg * 65535 / 255
                         Y1_new = Y1 - 0.25 * delta_mat * 65535 / 255
 
                         # Logging the calculations
                         if DEBUG:
-                            print(
-                                f"\tX1 = round(X1 - 0.25 * delta_bkg * 65535 / 255) = round({X1} - 0.25 * {delta_bkg} * 65535 / 255) = {X1_new}"
+                            logger.debug(
+                                f"X1 = round(X1 - 0.25 * delta_bkg * 65535 / 255) = round({X1} - 0.25 * {delta_bkg} * 65535 / 255) = {X1_new}"
                             )
-                            print(
-                                f"\tY1 = round(Y1 - 0.25 * delta_mat * 65535 / 255) = round({Y1} - 0.25 * {delta_mat} * 65535 / 255) = {Y1_new}"
+                            logger.debug(
+                                f"Y1 = round(Y1 - 0.25 * delta_mat * 65535 / 255) = round({Y1} - 0.25 * {delta_mat} * 65535 / 255) = {Y1_new}"
                             )
 
                         # Rounding the values
@@ -372,10 +311,11 @@ class Plugin(BasePlugin):
                         n_it += 1
 
                     # Apply equalization to slice
-                    print(f"Slice {slice_index} - Iteration {n_it} - {delta_avg = }")
-                    if delta_avg > self.result["delta"]:
-                        print(
-                            "Warning: Maximum number of iterations reached. Results may not be accurate. Using last slice X and Y"
+                    logger.debug(f"Slice {slice_index} - Iteration {n_it} - {delta_avg = }")
+
+                    if round(delta_avg, 2) > self.result["delta"]:
+                        logger.debug(
+                            f"Warning: Maximum number of iterations reached. Results may not be accurate. Using last slice X and Y: {last_X = } {last_Y = }"
                         )
                         X1, Y1 = last_X, last_Y
                     if (
@@ -384,8 +324,56 @@ class Plugin(BasePlugin):
                         <= self.result["end_slice"]
                     ):
                         X, Y = X1, Y1
-                        print(f"{X = } {Y = }")
+                        logger.debug(f"{X = } {Y = }")
                         slice_8bit = adjust_brightness_contrast(current_slice, X, Y)
+                        mat_hist_8bit, mat_bins_8bit = np.histogram(
+                            slice_8bit[slice_mat],
+                            bins=256,
+                            #range=(mat_min_8bit, mat_max_8bit),
+                        )
+
+                        max_mat_8bit = np.max(mat_hist_8bit)
+                        threshold_mat_8bit = max_mat_8bit * self.result["t_mat"]
+                        bin_centers_8bit = (mat_bins_8bit[:-1] + mat_bins_8bit[1:]) / 2
+                        mask_mat_8bit = mat_hist_8bit > threshold_mat_8bit
+
+                        weighted_sum_8bit = np.sum(
+                            mat_hist_8bit[mask_mat_8bit]
+                            * bin_centers_8bit[mask_mat_8bit]
+                        )
+                        total_count_8bit = np.sum(mat_hist_8bit[mask_mat_8bit])
+
+                        mat_val_8bit = (
+                            weighted_sum_8bit / total_count_8bit
+                            if total_count_8bit > 0
+                            else 0
+                        )
+                        bkg_hist_8bit, bkg_bins_8bit = np.histogram(
+                            slice_8bit[slice_bkg],
+                            bins=256,
+                            #range=(bkg_min_8bit, bkg_max_8bit),
+                        )
+
+                        max_bkg_8bit = np.max(bkg_hist_8bit)
+                        threshold_bkg_8bit = max_bkg_8bit * self.result["t_bkg"]
+                        bin_centers_8bit = (bkg_bins_8bit[:-1] + bkg_bins_8bit[1:]) / 2
+                        mask_bkg_8bit = bkg_hist_8bit > threshold_bkg_8bit
+
+                        weighted_sum_8bit = np.sum(
+                            bkg_hist_8bit[mask_bkg_8bit]
+                            * bin_centers_8bit[mask_bkg_8bit]
+                        )
+                        total_count_8bit = np.sum(bkg_hist_8bit[mask_bkg_8bit])
+
+                        bkg_val_8bit = (
+                            weighted_sum_8bit / total_count_8bit
+                            if total_count_8bit > 0
+                            else 0
+                        )
+                        delta_mat = self.result["ref_mat_original"] - mat_val_8bit
+                        delta_bkg = self.result["ref_bkg_original"] - bkg_val_8bit
+                        delta_avg = (abs(delta_mat) + abs(delta_bkg)) / 2
+                        logger.debug(f"{delta_mat = } {delta_bkg = } {delta_avg = } {X =} {Y =}")
                     else:
                         X, Y = (
                             (X_s, Y_s)
@@ -408,9 +396,10 @@ class Plugin(BasePlugin):
                         slice_index,
                         volume.shape[0],
                     )
-                except Exception:
+                except Exception as e:
                     traceback.print_exc()
-                    print("error, updating")
+                    logger.exception(f"Error processing slice {slice_index}:")
+                    logger.debug("error, updating")
                     self.update_progress(
                         int((slice_index / volume.shape[0]) * 100),
                         f"Processing slice {slice_index} of {volume.shape[0]}",
@@ -421,7 +410,11 @@ class Plugin(BasePlugin):
             self.request_gui(show_elapsed_time, start, volume)
         except Exception as e:
             traceback.print_exc()
+            logger.exception("Error processing volume:")
             self.error.emit(str(e), self.get_name())
+
+    def process_volume():
+            pass
 
     def handle_roi_selection(self, volume, roi_type):
         """
@@ -453,9 +446,7 @@ class Plugin(BasePlugin):
                 return None
             return self.read_virtual_sequence(roi_path)
 
-    def process_volume():
-        pass
-
+    
 
     def select_roi_manually(self, volume, roi_type):
         """
@@ -470,13 +461,14 @@ class Plugin(BasePlugin):
         """
 
         # Compute the maximum intensity projection along the z-axis
-
+        res = self.request_gui(create_slice_range_dialog(self.main_window))
         if roi_type == "mat":
-            projection = np.max(volume[self.result["start_slice"]:self.result["end_slice"]], axis=0)
+            projection = np.min(volume[res["start_slice"]:res["end_slice"]], axis=0)
 
         elif roi_type == "bkg":
-            projection = np.min(volume[self.result["start_slice"]:self.result["end_slice"]], axis=0)
+            projection = np.max(volume[res["start_slice"]:res["end_slice"]], axis=0)
 
+        projection = auto_adjust(convert_to_8bit(projection))
         roi = self.get_image_bbox(projection)
 
         x1, y1, x2, y2 = roi
@@ -646,3 +638,4 @@ def plot_with_colored_rois_and_bboxes(mat_roi, bkg_roi, mat_bbox, bkg_bbox):
     # Setting additional plot parameters
     ax.axis("off")
     plt.show()
+
