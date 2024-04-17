@@ -7,8 +7,7 @@ import matplotlib.pyplot as plt
 import tifffile as tiff
 from utils import image_sequence
 import os
-
-
+import plugins.Reslicer.reslicer as rsl
 # Define a class that implements the PluginInterface
 class Plugin(BasePlugin):
     # Prompt the user to select a file
@@ -40,23 +39,21 @@ class Plugin(BasePlugin):
 
         # Check if a file was selected
         if file_path and save_path:
-            # ask for reslice direction
-            reslice_direction = self.request_gui(self.ask_reslice)
 
-            # reslice the volume
-            resliced = self.reslice(volume, reslice_direction)
+            #ask for reslice direction
+            reslice_direction = self.request_gui(rsl.ask_reslice,self)
+
+            #reslice the volume
+            resliced = rsl.reslice(volume, reslice_direction)
+
+            resliced = self.request_gui(rsl.ask_rotate,self,resliced)
 
             print(resliced.shape)
 
             # save the resliced volume
             if file_save:
                 self.update_progress(0, "Saving resliced volume.")
-                tiff.imwrite(
-                    save_path,
-                    resliced,
-                    imagej=True,
-                    metadata={"axes": "ZYX", "unit": "um"},
-                )
+                tiff.imwrite(save_path, resliced)
             else:
                 image_sequence.write_sequence2(
                     save_path,
@@ -71,39 +68,3 @@ class Plugin(BasePlugin):
         else:
             # Show a message box if no file is selected
             self.prompt_error("No file selected.")
-
-    def ask_reslice(self):
-        window = QDialog(self.main_window)
-        layout = QVBoxLayout()
-
-        button_name = None
-
-        def on_button_clicked(name):
-            nonlocal button_name
-            button_name = name
-            window.close()
-
-        for name in ["Top", "Bot", "Left", "Right"]:
-            button = QPushButton(name)
-            button.clicked.connect(lambda checked, name=name: on_button_clicked(name))
-            layout.addWidget(button)
-
-        window.setLayout(layout)
-        window.show()
-        window.exec()
-
-        return button_name
-
-    def reslice(self, volume, name):
-        if name == "Top":
-            resliced = np.transpose(volume, (1, 0, 2))[::-1, :, :]
-            resliced = np.flip(resliced, axis=1)
-        elif name == "Left":
-            resliced = np.transpose(volume, (2, 1, 0))
-            resliced = np.flip(resliced, axis=2)
-        elif name == "Right":
-            resliced = np.transpose(volume, (2, 1, 0))[::-1, :, :]
-        elif name == "Bottom":
-            resliced = np.transpose(volume, (1, 0, 2))
-
-        return resliced
