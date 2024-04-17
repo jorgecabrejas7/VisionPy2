@@ -217,3 +217,5 @@ def create_file_settings_dialog(parent: QMainWindow):
         return dialog.exec()
 
     return get_file_settings
+
+

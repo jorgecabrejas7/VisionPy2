@@ -12,7 +12,7 @@ from PyQt6.QtCore import QEventLoop, QObject, pyqtSignal
 from PyQt6.QtWidgets import QFileDialog, QMessageBox, QDialog, QVBoxLayout, QPushButton
 
 from utils import image_sequence
-from utils.gui_utils import virtual_sequence_bbox, virtual_sequence_slice
+from utils.gui_utils import virtual_sequence_bbox, virtual_sequence_slice, get_bbox
 from views.main_window import MainWindow
 
 
@@ -283,6 +283,18 @@ class BasePlugin(QObject):
         """
         return self.request_gui(virtual_sequence_bbox, zarr_array=zarr_array)
 
+    def get_image_bbox(self, image: zarr.Array) -> list[int]:
+        """
+        Processes a Zarr array, displaying each slice and allowing the user to select a
+        bounding box on a specific slice. Captures the details via a dialog box.
+
+        Args:
+        zarr_array (zarr.Array): Zarr array representing image slices.
+
+        Returns:
+        Tuple[int, List[int]]: Tuple containing the index of the selected slice and the bounding box coordinates.
+        """
+        return self.request_gui(get_bbox, zarr_array=image)
 
     def select_slice(self, zarr_array: zarr.Array) -> int:
         """
