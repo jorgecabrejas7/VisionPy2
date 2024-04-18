@@ -146,7 +146,7 @@ if (!fix_bkg_ROI){
 	Bkg_Stack_ID = getImageID(); //Get the ID of the Bkg_stack
 	Bkg_Stack = getTitle();
 } else {
-	roiManager("Open", Target_Directory + "1_BKG.roi"); //ROI 1
+	roiManager("Open", Target_Directory + "01_BKG.roi"); //ROI 1
 }
 
 // Step 1.3 Creating the new stack:
@@ -164,7 +164,7 @@ for (slice=start_slice; slice<=end_slice; slice++) {
 		print("Please check the inputs and try again.");
 		break;
 		}
-	print("\\Clear");
+	//print("\\Clear");
 	print("Progress : " + ((slice-start_slice)/Target_Slices*100)+ "%" );
 
 	//0. Create the ROIs from the mat and bkg volumes
@@ -378,6 +378,9 @@ for (slice=start_slice; slice<=end_slice; slice++) {
 
 	//4.0 Creating the new stack:
 	//4.1 Duplicating:
+	if(delta_avg > delta){
+		print("The tolerance was not reached. The slice will be concatenated without changes. Slice number: " + slice );
+	}
 	selectImage(Target_ID);
 	run("Duplicate...",  "Slice_" + slice + " duplicate range=" + slice + "-" + slice);
 	Slice_ID = getImageID();
@@ -422,7 +425,7 @@ run("Delete Slice");
 selectImage(Target_ID);
 
 for (slice=(end_slice+1); slice <= Target_Slices; slice++) {
-	print("\\Clear");
+	//print("\\Clear");
 	print("Progress : " + (((slice-end_slice)/Target_Slices*100) + (end_slice-start_slice)/Target_Slices*100) + "%" );
 	selectImage(Target_ID);
 	run("Set Slice...", "slice=" + slice);
@@ -440,7 +443,7 @@ for (slice=(end_slice+1); slice <= Target_Slices; slice++) {
 }
 
 for (slice=(start_slice-1); slice > 0; slice--) {
-	print("\\Clear");
+	//print("\\Clear");
 	print("Progress : " + (((start_slice-slice)/Target_Slices*100) + (Target_Slices-start_slice)/Target_Slices*100)+ "%" );
 	selectImage(Target_ID);jsvs
 	run("Set Slice...", "slice=" + slice);
@@ -459,7 +462,7 @@ for (slice=(start_slice-1); slice > 0; slice--) {
 	run("Concatenate...", "  title=[Eq_Stack] image1=" + Slice_Title +" image2=" + New_Stack + " image3=[-- None --]");
 	New_Stack_ID = getImageID();
 }
-print("\\Clear");
+//print("\\Clear");
 print("Progress : 100%" );
 
 //5.0 Saving the volume:

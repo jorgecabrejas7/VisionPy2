@@ -11,7 +11,7 @@ from plugins.Equalizer_4__3.tools import (
 import traceback
 from utils.image_sequence import read_virtual_sequence
 from utils.bit_depth import convert_to_8bit
-from utils.contrast_and_brightness import adjust_brightness_contrast, auto_adjust
+from utils.contrast_and_brightness import auto_adjust, equalize
 import tifffile
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -194,7 +194,7 @@ class Plugin(BasePlugin):
                         logger.debug(
                             f"Slice {slice_index} - Iteration {n_it} - {delta_avg = }"
                         )
-                        slice_8bit = adjust_brightness_contrast(current_slice, X, Y)
+                        slice_8bit = equalize(current_slice, X, Y)
                         if slice_index == self.result["start_slice"] - 1:
                             X_s = X1
                             Y_s = Y1
@@ -281,6 +281,7 @@ class Plugin(BasePlugin):
                             if total_count_8bit > 0
                             else 0
                         )
+                        
                         delta_mat = self.result["ref_mat_original"] - mat_val_8bit
                         delta_bkg = self.result["ref_bkg_original"] - bkg_val_8bit
                         if DEBUG:
@@ -325,7 +326,7 @@ class Plugin(BasePlugin):
                     ):
                         X, Y = X1, Y1
                         logger.debug(f"{X = } {Y = }")
-                        slice_8bit = adjust_brightness_contrast(current_slice, X, Y)
+                        slice_8bit = equalize(current_slice, X, Y)
                         mat_hist_8bit, mat_bins_8bit = np.histogram(
                             slice_8bit[slice_mat],
                             bins=256,
@@ -380,7 +381,7 @@ class Plugin(BasePlugin):
                             if slice_index < self.result["start_slice"]
                             else (X_f, Y_f)
                         )
-                        slice_8bit = adjust_brightness_contrast(current_slice, X, Y)
+                        slice_8bit = equalize(current_slice, X, Y)
 
                     if file_settings == "duplicate":
                         # Logic to save slices

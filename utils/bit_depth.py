@@ -68,3 +68,17 @@ def convert_to_8bit(image, use_scaling=False, min_val=None, max_val=None):
     else:
         # Directly convert from 16-bit to 8-bit
         return (image / 65535.0 * 255).astype(np.uint8)
+
+def imagej_8B(image: np.ndarray):
+    
+    min_val, max_val = image.min(), image.max()
+    bins = np.linspace(min_val, max_val, 256) # 256 bins +1 to cover end point
+
+    # Use digitize to find out indices of the bins each pixel belongs to
+    indices = np.digitize(image, bins) - 1  # Subtract 1 to make indices 0-based
+
+    # Since indices are in range 1 to 256, we subtract 1 to map to 0-255
+    # Clip any out-of-bound values just in case
+    img_8bit = np.clip(indices, 0, 255).astype(np.uint8)
+
+    return img_8bit
