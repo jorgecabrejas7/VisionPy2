@@ -56,13 +56,13 @@ def create_equalization_settings_dialog(parent: QMainWindow) -> callable:
                 double_validator.setLocale(
                     QLocale(QLocale.Language.English, QLocale.Country.UnitedStates)
                 )
-                self.ref_mat_edit = QLineEdit("210")
-                self.ref_mat_edit.setValidator(double_validator)
-                form_layout.addRow("Reference material:", self.ref_mat_edit)
+                self.target_mat_edit = QLineEdit("210")
+                self.target_mat_edit.setValidator(double_validator)
+                form_layout.addRow("Target material value:", self.target_mat_edit)
 
-                self.ref_bkg_edit = QLineEdit("50")
-                self.ref_bkg_edit.setValidator(double_validator)
-                form_layout.addRow("Reference background:", self.ref_bkg_edit)
+                self.target_bkg_edit = QLineEdit("50")
+                self.target_bkg_edit.setValidator(double_validator)
+                form_layout.addRow("Target background value:", self.target_bkg_edit)
 
                 self.t_mat_edit = QLineEdit("0.3")
                 self.t_mat_edit.setValidator(double_validator)
@@ -72,9 +72,9 @@ def create_equalization_settings_dialog(parent: QMainWindow) -> callable:
                 self.t_bkg_edit.setValidator(double_validator)
                 form_layout.addRow("Threshold background:", self.t_bkg_edit)
 
-                self.delta_edit = QLineEdit("0.7")
-                self.delta_edit.setValidator(double_validator)
-                form_layout.addRow("Tolerance:", self.delta_edit)
+                self.average_error_edit = QLineEdit("0.7")
+                self.average_error_edit.setValidator(double_validator)
+                form_layout.addRow("Tolerance:", self.average_error_edit)
 
                 self.max_it = QLineEdit("10")
                 self.max_it.setValidator(QIntValidator())
@@ -88,13 +88,17 @@ def create_equalization_settings_dialog(parent: QMainWindow) -> callable:
                 self.end_slice_edit.setValidator(QIntValidator())
                 form_layout.addRow("End slice::", self.end_slice_edit)
 
-                self.fix_bkg_ROI_check = QCheckBox("Fixed Background ROI")
-                self.fix_bkg_ROI_check.setChecked(True)
-                form_layout.addRow(self.fix_bkg_ROI_check)
+                self.select_bkg_roi_check = QCheckBox("Manually Select Background ROI")
+                self.select_bkg_roi_check.setChecked(True)
+                form_layout.addRow(self.select_bkg_roi_check)
 
-                self.fix_mat_ROI_check = QCheckBox("Fixed Material ROI")
-                self.fix_mat_ROI_check.setChecked(True)
-                form_layout.addRow(self.fix_mat_ROI_check)
+                self.select_mat_roi_check = QCheckBox("Manually Select Material ROI")
+                self.select_mat_roi_check.setChecked(True)
+                form_layout.addRow(self.select_mat_roi_check)
+
+                self.histogram_matching_check = QCheckBox("Histogram Matching")
+                self.histogram_matching_check.setChecked(False)
+                form_layout.addRow(self.histogram_matching_check)
 
                 layout.addLayout(form_layout)
 
@@ -112,11 +116,11 @@ def create_equalization_settings_dialog(parent: QMainWindow) -> callable:
 
             def validate_inputs(self):
                 if not self.validate_field(
-                    self.ref_mat_edit, "Reference material", float
+                    self.target_mat_edit, "Reference material", float
                 ):
                     return False
                 if not self.validate_field(
-                    self.ref_bkg_edit, "Reference background", float
+                    self.target_bkg_edit, "Reference background", float
                 ):
                     return False
                 if not self.validate_field(
@@ -127,7 +131,7 @@ def create_equalization_settings_dialog(parent: QMainWindow) -> callable:
                     self.t_bkg_edit, "Threshold background", float
                 ):
                     return False
-                if not self.validate_field(self.delta_edit, "Tolerance", float):
+                if not self.validate_field(self.average_error_edit, "Tolerance", float):
                     return False
                 if not self.validate_field(self.max_it, "Max iterations/slice", int):
                     return False
@@ -154,16 +158,17 @@ def create_equalization_settings_dialog(parent: QMainWindow) -> callable:
 
             def get_values(self):
                 return {
-                    "target_material": float(self.ref_mat_edit.text()),
-                    "target_background": float(self.ref_bkg_edit.text()),
+                    "target_material": float(self.target_mat_edit.text()),
+                    "target_background": float(self.target_bkg_edit.text()),
                     "threshold_mat": float(self.t_mat_edit.text()),
                     "threshold_bkg": float(self.t_bkg_edit.text()),
-                    "error_threshold": float(self.delta_edit.text()),
+                    "error_threshold": float(self.average_error_edit.text()),
                     "max_it": int(self.max_it.text()),
                     "start_slice": int(self.start_slice_edit.text()),
                     "end_slice": int(self.end_slice_edit.text()),
-                    "select_roi_mat": self.fix_bkg_ROI_check.isChecked(),
-                    "select_roi_bkg": self.fix_mat_ROI_check.isChecked(),
+                    "select_roi_mat": self.select_bkg_roi_check.isChecked(),
+                    "select_roi_bkg": self.select_mat_roi_check.isChecked(),
+                    "histogram_matching": self.histogram_matching_check.isChecked(),
                 }
 
         dialog = CustomDialog()

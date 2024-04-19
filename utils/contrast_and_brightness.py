@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 from utils.bit_depth import imagej_8B
 
+
 def auto_adjust(image: np.ndarray) -> np.ndarray:
     """
     Automatically adjusts the contrast of an image by stretching its histogram.
@@ -36,7 +37,11 @@ def auto_adjust(image: np.ndarray) -> np.ndarray:
     hmax = next(255 - i for i, count in enumerate(reversed(hist)) if count > threshold)
 
     # Apply contrast stretching and return the result
-    return np.clip((image - hmin) * (255 / (hmax - hmin)), 0, 255)
+    return (
+        np.clip((image - hmin) * (255 / (hmax - hmin)), 0, 255)
+        if (hmax - hmin) > 0
+        else image
+    )
 
 
 def adjust_brightness_contrast_old(
@@ -58,13 +63,16 @@ def adjust_brightness_contrast_old(
         raise ValueError("Input must be a NumPy array.")
 
     # Clip and rescale the intensity values of the image
-    
+
     adjusted_image = (image - min_val) / (max_val - min_val) * 255
     clipped_image = np.clip(adjusted_image, 0, 255)
 
     return clipped_image.astype(np.uint8)
 
-def adjust_brightness_contrast(image: np.ndarray, min_val: int, max_val: int) -> np.ndarray:
+
+def adjust_brightness_contrast(
+    image: np.ndarray, min_val: int, max_val: int
+) -> np.ndarray:
     """
     Rescales an image's pixel values to a new specified range [min_val, max_val].
 
@@ -92,8 +100,8 @@ def adjust_brightness_contrast(image: np.ndarray, min_val: int, max_val: int) ->
 
     return imagej_8B(rescaled_image)
 
+
 def equalize(image: np.ndarray, min_val: float, max_val: float):
-    
     clipped = np.clip(image, min_val, max_val)
     equalized = (clipped - min_val) / (max_val - min_val) * 255
     return equalized.astype(np.uint8)

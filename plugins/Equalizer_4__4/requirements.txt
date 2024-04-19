@@ -2,3 +2,4 @@ tifffile
 numpy
 zarr
 read-roi
+scikit-image

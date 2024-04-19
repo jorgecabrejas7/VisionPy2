@@ -1,3 +1,4 @@
+from uuid import UUID
 import numpy as np
 
 from base_plugin import BasePlugin
@@ -19,6 +20,9 @@ import time
 from PyQt6.QtWidgets import QMessageBox, QDialog, QLineEdit
 import logging
 import os
+from skimage.exposure import match_histograms
+
+from views.main_window import MainWindow
 
 # create a logger that writes to a file called eq.log using python logging
 # Create or get the logger
@@ -55,6 +59,10 @@ DEBUG = True
 
 
 class Plugin(BasePlugin):
+    def __init__(self, main_window: MainWindow, plugin_name: str, uuid: UUID):
+        super().__init__(main_window, plugin_name, uuid)
+        self.last_min, self.last_max, self.last_slice = None, None, None
+
     def execute(self):
         try:
             # Prompt the user to select a folder to load the volume from
@@ -118,6 +126,10 @@ class Plugin(BasePlugin):
         except Exception as e:
             logger.exception(f"Error during execution: {e}")
 
+    # Functions for the processing logic
+    # These functions are called by the execute function
+    # They contain the logic for processing the volume and slices
+    # They should be implemented by the plugin developer
     def process_volume(self, volume, mat_roi, bkg_roi, save_path, file_settings):
         # Iterate over each slice in the volume
         try:
@@ -162,7 +174,12 @@ class Plugin(BasePlugin):
         threshold_bkg,
         volume,
     ):
-        
+        """
+        TODO:
+        - Implement a boolean to choose to do histogram matching with last slice if convergence has not been achieved.
+        - Implement testing with one or few slices to select optimal params.
+        - In testing, let the user try until they are satisfied with the result, asking whether to plot the results.
+        """
         # Determine the material and background ROI for the current slice
         # If the user has not selected to manually select the ROI, use the predefined ROI
         # Otherwise, create a copy of the mask ROI
@@ -263,11 +280,29 @@ class Plugin(BasePlugin):
 
         logger.debug(debugging_string)
 
-        if average_error > best_error:
+        if self.last_min is not None and self.last_max is not None:
+            if best_error > self.calculate_error(
+                _slice, slice_mat, slice_bkg, self.last_min, self.last_max
+            ):
+                # Using last known good values
+                aux_min, aux_max = self.last_min, self.last_max
+                error_message = "last"
+            else:
+                # Using best values from current computations
+                aux_min, aux_max = best_min, best_max
+                error_message = "best"
+        else:
+            # No last values available, use the best current values
             aux_min, aux_max = best_min, best_max
-            logger.debug(
-                f"Slice {slice_index}. Current error is higher than best error. Using best values: Min: {aux_min}, Max: {aux_max} Best Error: {best_error} Current Error: {average_error}"
-            )
+            error_message = "best"
+
+        # Set the new last values
+        new_error = self.calculate_error(_slice, slice_mat, slice_bkg, aux_min, aux_max)
+        self.last_min, self.last_max = aux_min, aux_max
+
+        logger.debug(
+            f"Slice {slice_index}. Using {error_message} values: Min: {aux_min}, Max: {aux_max}, Error: {new_error:.2f} (Current Error: {average_error:.2f})"
+        )
 
         if (
             self.result["start_slice"] - 1
@@ -277,13 +312,16 @@ class Plugin(BasePlugin):
             min_val, max_val = aux_min, aux_max
 
         else:
-            min_val, max_val = (
-                self.first_slice_min,
-                self.first_slice_min
-                if slice_index < self.result["start_slice"] - 1
-                else self.last_slice_min,
-                self.last_slice_max,
+            logger.debug(
+                f"Slice {slice_index} out of the equalization range ({self.result['start_slice'] - 1} - {self.result['end_slice'] - 1}"
             )
+
+            if slice_index < self.result["start_slice"] - 1:
+                min_val = self.first_slice_min
+                max_val = self.first_slice_min
+            else:
+                min_val = self.last_slice_min
+                max_val = self.last_slice_max
 
         self.update_progress(
             int((slice_index / volume.shape[0]) * 100),
@@ -291,7 +329,21 @@ class Plugin(BasePlugin):
             slice_index,
             volume.shape[0],
         )
-        return equalize(_slice, min_val, max_val)
+
+        if (
+            self.result["histogram_matching"]
+            and new_error > self.result["error_threshold"]
+        ):
+            logger.debug(
+                f"Slice {slice_index} - Performing histogram matching with last slice"
+            )
+            slice_8bit = self.histogram_match(_slice, self.last_slice)
+        else:
+            slice_8bit = equalize(_slice, min_val, max_val)
+
+        self.last_slice = slice_8bit
+
+        return slice_8bit
 
     def handle_roi_selection(self, volume, roi_type):
         """
@@ -337,11 +389,38 @@ class Plugin(BasePlugin):
 
         # Compute the maximum intensity projection along the z-axis
         res = self.request_gui(create_slice_range_dialog(self.main_window))
-        if roi_type == "mat":
-            projection = np.min(volume[res["start_slice"] : res["end_slice"]], axis=0)
+        start_slice, end_slice = res["start_slice"], res["end_slice"]
 
+        # Initialize the projection with the first applicable slice.
+        first_slice = volume[start_slice]
+        if roi_type == "mat":
+            projection = first_slice
         elif roi_type == "bkg":
-            projection = np.max(volume[res["start_slice"] : res["end_slice"]], axis=0)
+            projection = first_slice
+
+        self.update_progress(0, "Calculating Z-Projection", 0, end_slice - start_slice)
+        # Incrementally update the projection.
+        for i in range(start_slice + 1, end_slice):
+            slice_data = volume[i]
+            if roi_type == "mat":
+                projection = np.min(np.stack((projection, slice_data), axis=0), axis=0)
+            elif roi_type == "bkg":
+                projection = np.max(np.stack((projection, slice_data), axis=0), axis=0)
+
+            # Update the progress bar.
+            self.update_progress(
+                int((i / (end_slice - start_slice)) * 100),
+                f"Calculating Z-Projection. Slice {i} of {end_slice}",
+                i - start_slice,
+                end_slice - start_slice,
+            )
+        # Update the progress bar to indicate that the Z-Projection is complete.
+        self.update_progress(
+            100,
+            "Z-Projection Complete",
+            end_slice - start_slice,
+            end_slice - start_slice,
+        )
 
         projection = auto_adjust(convert_to_8bit(projection))
         roi = self.get_image_bbox(projection)
@@ -379,3 +458,62 @@ class Plugin(BasePlugin):
 
         # Calculate the average value by dividing the weighted sum by the total counts
         return weighted_sum / total_counts if total_counts > 0 else 0
+
+    def calculate_error(self, slice_data, roi_mat, roi_bkg, min_val, max_val):
+        # Calculate average error for a slice  with certain min and max values
+        data = equalize(slice_data, min_val, max_val)
+        mat_val = self.calculate_peak(data, roi_mat, self.result["threshold_mat"])
+        bkg_val = self.calculate_peak(data, roi_bkg, self.result["threshold_bkg"])
+
+        error_mat = self.result["target_material"] - mat_val
+        error_bkg = self.result["target_background"] - bkg_val
+
+        average_error = (abs(error_mat) + abs(error_bkg)) / 2
+
+        return average_error
+
+    def histogram_match(self, target, template):
+        """
+        Adjust the pixel values of a grayscale image such that its histogram
+        matches that of a target image
+
+        Arguments:
+        -----------
+            source: np.ndarray
+                Image to transform; the histogram is computed over the flattened
+                array
+            template: np.ndarray
+                Template image; can have different dimensions to source
+        Returns:
+        -----------
+            matched: np.ndarray
+                The transformed output image
+        """
+
+        source = convert_to_8bit(target, use_scaling=True)
+        oldshape = source.shape
+        source = source.ravel()
+        template = template.ravel()
+
+        # get the set of unique pixel values and their corresponding indices and counts
+        s_values, bin_idx, s_counts = np.unique(
+            source, return_inverse=True, return_counts=True
+        )
+        t_values, t_counts = np.unique(template, return_counts=True)
+
+        # take the cumsum of the counts and normalize by the number of pixels to
+        # get the empirical cumulative distribution functions for the source and
+        # template images (maps pixel value --> quantile)
+        s_quantiles = np.cumsum(s_counts).astype(np.float64)
+        s_quantiles /= s_quantiles[-1]
+        t_quantiles = np.cumsum(t_counts).astype(np.float64)
+        t_quantiles /= t_quantiles[-1]
+
+        # interpolate linearly to find the pixel values in the template image
+        # that correspond most closely to the quantiles in the source image
+        interp_t_values = np.interp(s_quantiles, t_quantiles, t_values)
+
+        # Use the interpolated values as indices to reassign pixels in the source
+        matched = interp_t_values[bin_idx].reshape(oldshape).astype(source.dtype)
+
+        return matched
