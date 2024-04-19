@@ -146,8 +146,20 @@ class Plugin(BasePlugin):
                 logger.exception(f"Error processing slice {slice_index}: {e}")
 
     def process_slice(
-        self, _slice, mat_roi, bkg_roi, slice_index, threshold_mat, threshold_bkg, volume
+        self,
+        _slice,
+        mat_roi,
+        bkg_roi,
+        slice_index,
+        threshold_mat,
+        threshold_bkg,
+        volume,
     ):
+        """
+        TODO: Implement best try on this slice. Implement globally on the class the last slice's min and max values
+        Chech avg error for both at the end, choose better one. Maybe dont need to stop looping until max_it in search
+        for a better fit
+        """
         # Determine the material and background ROI for the current slice
         # If the user has not selected to manually select the ROI, use the predefined ROI
         # Otherwise, create a copy of the mask ROI
@@ -207,8 +219,12 @@ class Plugin(BasePlugin):
             equalized_slice = equalize(_slice, aux_min, aux_max)
 
             # Calculate peak values for material and bakground for the equalized slice
-            mat_val_8bit = self.calculate_peak(equalized_slice, slice_mat, threshold_mat)
-            bkg_val_8bit = self.calculate_peak(equalized_slice, slice_bkg, threshold_bkg)
+            mat_val_8bit = self.calculate_peak(
+                equalized_slice, slice_mat, threshold_mat
+            )
+            bkg_val_8bit = self.calculate_peak(
+                equalized_slice, slice_bkg, threshold_bkg
+            )
 
             # Calculate errors
             error_mat = self.result["target_material"] - mat_val_8bit
@@ -252,16 +268,14 @@ class Plugin(BasePlugin):
                 else self.last_slice_min,
                 self.last_slice_max,
             )
-        
-        self.update_progress(
-                        int((slice_index / volume.shape[0]) * 100),
-                        f"Processing slice {slice_index} of {volume.shape[0]}",
-                        slice_index,
-                        volume.shape[0],
-                    )
-        return equalize(_slice, min_val, max_val)
 
-    
+        self.update_progress(
+            int((slice_index / volume.shape[0]) * 100),
+            f"Processing slice {slice_index} of {volume.shape[0]}",
+            slice_index,
+            volume.shape[0],
+        )
+        return equalize(_slice, min_val, max_val)
 
     def handle_roi_selection(self, volume, roi_type):
         """
