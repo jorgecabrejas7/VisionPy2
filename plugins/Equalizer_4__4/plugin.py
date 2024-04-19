@@ -120,30 +120,37 @@ class Plugin(BasePlugin):
 
     def process_volume(self, volume, mat_roi, bkg_roi, save_path, file_settings):
         # Iterate over each slice in the volume
-        for slice_index, _slice in enumerate(volume):
-            # Process the slice and obtain the 8-bit version
-            try:
-                slice_8bit = self.process_slice(
-                    _slice,
-                    mat_roi,
-                    bkg_roi,
-                    slice_index,
-                    self.result["threshold_mat"],
-                    self.result["threshold_bkg"],
-                    volume,
-                )
-
-                # Check the file settings
-                if file_settings == "duplicate":
-                    # Save the 8-bit slice as a TIFF file in the specified folder
-                    tifffile.imwrite(
-                        f"{save_path}/eq_slice_{slice_index}.tif", slice_8bit
+        try:
+            for slice_index, _slice in enumerate(volume):
+                # Process the slice and obtain the 8-bit version
+                try:
+                    slice_8bit = self.process_slice(
+                        _slice,
+                        mat_roi,
+                        bkg_roi,
+                        slice_index,
+                        self.result["threshold_mat"],
+                        self.result["threshold_bkg"],
+                        volume,
                     )
-                elif file_settings == "apply":
-                    # Update the original volume with the 8-bit slice
-                    volume[slice_index] = slice_8bit
-            except Exception as e:
-                logger.exception(f"Error processing slice {slice_index}: {e}")
+
+                    # Check the file settings
+                    if file_settings == "duplicate":
+                        # Save the 8-bit slice as a TIFF file in the specified folder
+                        tifffile.imwrite(
+                            f"{save_path}/eq_slice_{slice_index}.tif", slice_8bit
+                        )
+                    elif file_settings == "apply":
+                        # Update the original volume with the 8-bit slice
+                        volume[slice_index] = slice_8bit
+                except Exception as e:
+                    logger.exception(f"Error processing slice {slice_index}: {e}")
+        except Exception as e:
+            logger.exception(f"Error processing slice {slice_index}: {e}")
+        finally:
+            self.update_progress(
+                100, "Processing complete", volume.shape[0], volume.shape[0]
+            )
 
     def process_slice(
         self,
@@ -155,11 +162,7 @@ class Plugin(BasePlugin):
         threshold_bkg,
         volume,
     ):
-        """
-        TODO: Implement best try on this slice. Implement globally on the class the last slice's min and max values
-        Chech avg error for both at the end, choose better one. Maybe dont need to stop looping until max_it in search
-        for a better fit
-        """
+        
         # Determine the material and background ROI for the current slice
         # If the user has not selected to manually select the ROI, use the predefined ROI
         # Otherwise, create a copy of the mask ROI
@@ -196,6 +199,9 @@ class Plugin(BasePlugin):
 
         # Create axuiliary and last generated min and max values
         aux_min, aux_max = initial_min, initial_max
+
+        # Initialize best min, max and error values
+        best_min, best_max, best_error = initial_min, initial_max, average_error
 
         # Iterate until convergence or maximum iterations
         while (
@@ -236,6 +242,10 @@ class Plugin(BasePlugin):
                 f"Slice {slice_index} Error Mat: {error_mat}, Error Bkg: {error_bkg}, Average Error: {average_error} Min: {aux_min}, Max: {aux_max}"
             )
 
+            # Update best metrics before updating
+            if best_error > average_error:
+                best_min, best_max, best_error = aux_min, aux_max, average_error
+
             # If convergence is not achieved, update min and max values
             if average_error > self.result["error_threshold"]:
                 aux_min, aux_max = (
@@ -252,6 +262,12 @@ class Plugin(BasePlugin):
         )
 
         logger.debug(debugging_string)
+
+        if average_error > best_error:
+            aux_min, aux_max = best_min, best_max
+            logger.debug(
+                f"Slice {slice_index}. Current error is higher than best error. Using best values: Min: {aux_min}, Max: {aux_max} Best Error: {best_error} Current Error: {average_error}"
+            )
 
         if (
             self.result["start_slice"] - 1
