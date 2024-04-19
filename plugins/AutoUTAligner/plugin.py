@@ -5,6 +5,7 @@ from PyQt6.QtCore import *
 import matplotlib.pyplot as plt
 import tifffile as tiff
 import plugins.UTAligner.aligner as alg
+import plugins.AutoUTAligner.autoutaligner as autoalg
 
 
 # Define a class that implements the PluginInterface
@@ -25,7 +26,9 @@ class Plugin(BasePlugin):
 
             volume = tiff.imread(file_path)
 
-            gate = alg.get_gate(self,volume)
+            gate = autoalg.auto_gate(volume)
+
+            print(gate)
 
             volume = alg.align(volume, gate)
 
