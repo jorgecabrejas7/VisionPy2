@@ -34,7 +34,7 @@ print(f"Logging to: {log_file_path}")  # Debug print to check path
 
 try:
     # Create a file handler which logs even debug messages
-    fh = logging.FileHandler(log_file_path, mode="w")
+    fh = logging.FileHandler(log_file_path, mode="a")
     fh.setLevel(logging.DEBUG)
 
     # Create formatter and add it to the handler
@@ -44,7 +44,7 @@ try:
     )
     fh.setFormatter(formatter)
 
-    # Add the handler to the logger
+    # Add the handler to the #logger
     logger.addHandler(fh)
 
     logger.debug("This is a debug message.")  # First message to trigger file creation
@@ -225,10 +225,6 @@ class Plugin(BasePlugin):
             average_error > self.result["error_threshold"]
             and n_it < self.result["max_it"]
         ):
-            logger.debug(
-                f"Slice {slice_index} - Iteration {n_it} Mat: {mat_val}, Bkg: {bkg_val}"
-            )
-
             # Set min and max values for slices ot of the equalization range
             if slice_index == self.result["start_slice"] - 1:
                 self.first_slice_min = aux_min
@@ -238,22 +234,10 @@ class Plugin(BasePlugin):
                 self.last_slice_min = aux_min
                 self.last_slice_max = aux_max
 
-            # Equalize the slice with current calculated min and max values
-            equalized_slice = equalize(_slice, aux_min, aux_max)
-
-            # Calculate peak values for material and bakground for the equalized slice
-            mat_val_8bit = self.calculate_peak(
-                equalized_slice, slice_mat, threshold_mat
+            # Calculate the error values for the equalized slice
+            average_error, error_mat, error_bkg = self.calculate_error(
+                _slice, slice_mat, slice_bkg, aux_min, aux_max
             )
-            bkg_val_8bit = self.calculate_peak(
-                equalized_slice, slice_bkg, threshold_bkg
-            )
-
-            # Calculate errors
-            error_mat = self.result["target_material"] - mat_val_8bit
-            error_bkg = self.result["target_background"] - bkg_val_8bit
-
-            average_error = (abs(error_mat) + abs(error_bkg)) / 2
 
             logger.debug(
                 f"Slice {slice_index} Error Mat: {error_mat}, Error Bkg: {error_bkg}, Average Error: {average_error} Min: {aux_min}, Max: {aux_max}"
@@ -272,37 +256,28 @@ class Plugin(BasePlugin):
 
             n_it += 1
 
-        debugging_string = (
-            f"Slice {slice_index} - Final Min: {aux_min}, Final Max: {aux_max} Average Error: {average_error}"
-            if average_error <= self.result["error_threshold"]
-            else f"WARNING: Slice {slice_index} - Convergence not achieved after {n_it} iterations. Average Error: {average_error} Min: {aux_min}, Max: {aux_max}"
-        )
-
-        logger.debug(debugging_string)
-
         if self.last_min is not None and self.last_max is not None:
-            if best_error > self.calculate_error(
-                _slice, slice_mat, slice_bkg, self.last_min, self.last_max
+            if (
+                best_error
+                > self.calculate_error(
+                    _slice, slice_mat, slice_bkg, self.last_min, self.last_max
+                )[0]
             ):
                 # Using last known good values
                 aux_min, aux_max = self.last_min, self.last_max
-                error_message = "last"
             else:
                 # Using best values from current computations
                 aux_min, aux_max = best_min, best_max
-                error_message = "best"
+
         else:
             # No last values available, use the best current values
             aux_min, aux_max = best_min, best_max
-            error_message = "best"
 
         # Set the new last values
-        new_error = self.calculate_error(_slice, slice_mat, slice_bkg, aux_min, aux_max)
+        new_error = self.calculate_error(
+            _slice, slice_mat, slice_bkg, aux_min, aux_max
+        )[0]
         self.last_min, self.last_max = aux_min, aux_max
-
-        logger.debug(
-            f"Slice {slice_index}. Using {error_message} values: Min: {aux_min}, Max: {aux_max}, Error: {new_error:.2f} (Current Error: {average_error:.2f})"
-        )
 
         if (
             self.result["start_slice"] - 1
@@ -312,10 +287,6 @@ class Plugin(BasePlugin):
             min_val, max_val = aux_min, aux_max
 
         else:
-            logger.debug(
-                f"Slice {slice_index} out of the equalization range ({self.result['start_slice'] - 1} - {self.result['end_slice'] - 1}"
-            )
-
             if slice_index < self.result["start_slice"] - 1:
                 min_val = self.first_slice_min
                 max_val = self.first_slice_min
@@ -334,9 +305,6 @@ class Plugin(BasePlugin):
             self.result["histogram_matching"]
             and new_error > self.result["error_threshold"]
         ):
-            logger.debug(
-                f"Slice {slice_index} - Performing histogram matching with last slice"
-            )
             slice_8bit = self.histogram_match(_slice, self.last_slice)
         else:
             slice_8bit = equalize(_slice, min_val, max_val)
@@ -438,11 +406,8 @@ class Plugin(BasePlugin):
             bins=256,
         )
 
-        # Find the maximum value in the histogram
-        max_val = np.max(hist)
-
         # Calculate the threshold value based on the maximum value and the user-defined threshold
-        thres = max_val * threshold
+        thres = np.max(hist) * threshold
 
         # Calculate the bin centers
         bin_centers = (bins[:-1] + bins[1:]) / 2
@@ -450,11 +415,11 @@ class Plugin(BasePlugin):
         # Create a mask based on the histogram values above the threshold
         mask = hist > thres
 
-        # Calculate the weighted sum of the histogram values above the threshold
-        weighted_sum = np.sum(hist[mask] * bin_centers[mask])
-
-        # Calculate the total counts of the histogram values above the threshold
-        total_counts = np.sum(hist[mask])
+        # Calculate weighted sum and total counts in a single step using masked arrays
+        masked_hist = hist[mask]
+        masked_centers = bin_centers[mask]
+        weighted_sum = np.dot(masked_hist, masked_centers)
+        total_counts = masked_hist.sum()
 
         # Calculate the average value by dividing the weighted sum by the total counts
         return weighted_sum / total_counts if total_counts > 0 else 0
@@ -470,7 +435,7 @@ class Plugin(BasePlugin):
 
         average_error = (abs(error_mat) + abs(error_bkg)) / 2
 
-        return average_error
+        return average_error, error_mat, error_bkg
 
     def histogram_match(self, target, template):
         """
