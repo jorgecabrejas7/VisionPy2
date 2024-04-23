@@ -81,7 +81,7 @@ def get_angle(volume, gate):
     else:
         largest_component = sorted(regions, key=lambda region: region.area)[-1]
 
-    # delete everything that is not the second largest component from mask
+    # delete everything that is not the largest component from mask
     mask[mask != largest_component.label] = 0
     try:
         mask = get_lines2(mask)
@@ -193,7 +193,7 @@ def get_gate(plugin, data):
         if response:
             return gate
 
-def align( data, gate):
+def align(data, gate):
     # now do it for the whole volume
     rolled_data = np.zeros_like(data)
     for i in range(data.shape[1]):
@@ -204,3 +204,13 @@ def align( data, gate):
             rolled = np.roll(signal, -max_gated_data_index)
             rolled_data[:, i, j] = rolled
     return rolled_data
+
+def autogate(volume):
+
+    brightest_slice = np.argmax(np.sum(volume, axis=(1,2)))
+
+    return [brightest_slice-2, brightest_slice+2]
+
+
+def ask_auto(plugin):
+    return plugin.prompt_confirmation("Do you want to use the auto gate?")

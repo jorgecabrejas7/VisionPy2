@@ -25,7 +25,19 @@ class Plugin(BasePlugin):
 
             volume = tiff.imread(file_path)
 
-            gate = alg.get_gate(self,volume)
+            auto = alg.ask_auto(self)
+
+            print(volume.shape)
+
+            if auto:
+
+                gate = alg.autogate(volume)
+            
+            else:
+
+                gate = alg.get_gate(self,volume)
+            
+            print(gate)
 
             volume = alg.align(volume, gate)
 
