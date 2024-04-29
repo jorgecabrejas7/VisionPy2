@@ -22,6 +22,7 @@ import logging
 import os
 from skimage.exposure import match_histograms
 
+
 from views.main_window import MainWindow
 
 # create a logger that writes to a file called eq.log using python logging
