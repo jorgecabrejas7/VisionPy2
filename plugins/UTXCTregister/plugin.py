@@ -2,249 +2,85 @@
 from base_plugin import BasePlugin
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
-import numpy as np
+from utils import image_sequence
 import matplotlib.pyplot as plt
 import tifffile as tiff
-import plugins.UTXCTregister.UTXCTregister as utxct
+import plugins.UTXCTregister.UTXCTregister as reg
+import numpy as np
+import time
 
 
 # Define a class that implements the PluginInterface
 class Plugin(BasePlugin):
     # Prompt the user to select a file
     def run(self):
+
+        batchmode = True
+
+        files_ut_paths = []
+        files_xct_paths = []
+        saves_paths = []
+
+        while batchmode:
+
+            # Open a file dialog to select a file
+            files_ut_paths.append(self.select_file("Select UT File"))
+
+            # Open a file dialog to select a file
+
+            files_xct_paths.append(self.select_file("Select XCT File"))
+
+            #open a file dialog to select a save path
+            saves_paths.append(self.select_folder("Select a folder to save the files."))
+
+            batchmode = self.prompt_confirmation("Do you want to use more files?")
+        
+        for ut_path,xct_path,save_path in zip(files_ut_paths,files_xct_paths,saves_paths):
+
+            # Check if a file was selected
+            if ut_path and xct_path and save_path:
+
+                #load the files
+                ut = tiff.imread(ut_path)
+                ut = np.swapaxes(ut, 0, 1)
+                ut = np.swapaxes(ut, 1, 2)
+                xct = tiff.imread(xct_path)
+                xct = np.swapaxes(xct, 0, 1)
+                xct = np.swapaxes(xct, 1, 2)
+
+                print('Loaded')
+
+                #preprocess the files
+                ut_centers = reg.ut_preprocessing(ut)
+                xct_centers = reg.xct_preprocessing(xct)
+
+                print('preprocessed')
+
+                #label the images
+                ut_labeled = reg.label_objects(ut_centers)
+                xct_labeled = reg.label_objects(xct_centers)
+
+                print('labeled')
+
+                #print the actual time, the hour and minute of the day
+                print(time.strftime("%H:%M:%S"))
+
+                #register
+                transformation = reg.register(ut_labeled, xct_labeled)
+
+                print('registered')
+
+                #apply the transformation
+                xct_aligned = reg.apply_transform(transformation, ut, xct)
+
+                print('applied registration')
+                
+                image_sequence.write_sequence2(save_path,'registered_xct', xct_aligned)
+
+            else:
+                # Show a message box if no file is selected
+                self.prompt_error("No file selected.")
+        
+        self.prompt_message("All files have been registered.")
+
     
-        # Open a file dialog to select a file
-        file_path_ut = self.select_file("Select UT File")
-
-        file_path_xct = self.select_file("Select XCT File")
-
-        # Open a file dialog to select a folder to save the rotated volume
-        save_path = self.select_save_file("Select filename to save the registered XCT volume")
-
-        # Check if a file was selected
-        if file_path and save_path:
-            print("the path is: ", file_path)
-
-            # Create a progress window
-
-            volume = tiff.imread(file_path)
-
-            gate = self.get_gate(volume)
-
-            volume = self.align(volume, gate)
-
-            # align the x,y axis
-
-            angle = self.get_angle(volume, gate)
-
-            # create a progress window
-
-            self.update_progress(0, "Rotating Volume")
-
-            rotated_volume = self.rotate_volume(volume, angle, self)
-
-            self.update_progress(100, "Rotating Volume", 1, 1)
-
-            # Save the rotated volume
-
-            tiff.imsave(save_path, rotated_volume)
-
-            # Show a message box if the rotated volume is saved successfully, when the message box is closed, close all matplotlib figures
-            self.prompt_message("Aligned volume saved successfully.")
-            self.request_gui(plt.close, "all")
-
-        else:
-            # Show a message box if no file is selected
-            self.prompt_error("No file selected.")
-
-    def get_angle(self, volume, gate):
-        """
-        Get the threshold values for different slices of a volume.
-
-        Args:
-        - self: the object instance
-        - volume: a 3D numpy array representing the volume
-
-        Returns:
-        - user_inputs: a dictionary containing the threshold values for different slices
-
-        Raises:
-        - No specific exceptions are raised within this function.
-
-        Example:
-        ```python
-        # Create an instance of the class
-        instance = ClassName()
-
-        # Define a 3D numpy array representing the volume
-        volume = np.random.rand(10, 10, 10)
-
-        # Call the function to get the threshold values
-        thresholds = instance.get_angles(volume)
-        ```
-        """
-
-        sliceid = gate[0]
-
-        middle_slice = volume[sliceid]
-
-        #otsu threshold
-        threshold_value = threshold_otsu(middle_slice)
-        print('threshold value is: ', threshold_value)
-        thresholded_slice = middle_slice > threshold_value
-
-        # Label the objects in the thresholded slice
-        labeled_slice = label(thresholded_slice)
-
-        # Get the properties of each labeled region
-        regions = regionprops(labeled_slice)
-
-        # Find the largest connected component
-        largest_component = max(regions, key=lambda region: region.area)
-
-        # Create a mask to keep only the largest component
-        mask = np.zeros_like(labeled_slice)
-        mask[labeled_slice == largest_component.label] = 1
-        mask = binary_fill_holes(mask).astype(int)
-
-        # Apply the mask to the thresholded slice
-        thresholded_slice = thresholded_slice * mask
-
-        # extract edges using canny edge detector
-        mask = feature.canny(mask > 0, sigma=0) > 0
-
-        # Label the objects in the thresholded slice
-        mask = label(mask)
-
-        # Get the properties of each labeled region
-        regions = regionprops(mask)
-
-        # Find the largest connected component if there is one, if not the first
-        if len(regions) == 1:
-            largest_component = regions[0]
-        else:
-            largest_component = sorted(regions, key=lambda region: region.area)[-1]
-
-        # delete everything that is not the second largest component from mask
-        mask[mask != largest_component.label] = 0
-        try:
-            mask = self.get_lines2(mask)
-        except:
-            print("line not smoothed")
-
-        # Compute the rotation angle of the largest component
-        rotation_angle = largest_component.orientation
-
-        # Convert the angle from radians to degrees
-        rotation_angle_degrees = np.degrees(rotation_angle)
-
-        # Print the rotation angle
-        print(
-            f"The rotation angle of the largest component is {rotation_angle_degrees} degrees."
-        )
-
-        return -rotation_angle_degrees
-
-    def get_lines2(self, image):
-        # get the first and last pixel of the image
-        linea = np.where(image >= 1)
-        x0 = linea[0][0]
-        x1 = linea[0][-1]
-        y0 = linea[1][0]
-        y1 = linea[1][-1]
-
-        # create a image with the same size as the input image
-        image2 = np.zeros_like(image)
-
-        import cv2
-
-        # draw the line on the image2
-        cv2.line(image2, (y0, x0), (y1, x1), (1, 1, 1), 2)
-
-        return image2
-
-    def rotate_volume(self, volume, angle, progress_window=None):
-        """
-        Rotate a 3D volume by a given angle.
-
-        Args:
-        volume (numpy.ndarray): A 3D array where each slice corresponds to an image.
-        angle (float): Angle in degrees.
-
-        Returns:
-        numpy.ndarray: A rotated 3D array.
-        """
-
-        rotated = rotate(volume[0], angle)
-
-        shape = shape = (volume.shape[0],) + rotated.shape
-
-        rotated_volume = np.zeros(shape=shape, dtype=volume.dtype)
-
-        if progress_window == None:
-            for i in range(volume.shape[0]):
-                rotated_volume[i] = rotate(volume[i], angle)
-        # Rotate each slice of the volume with progress bar
-        else:
-            for i in range(volume.shape[0]):
-                rotated_volume[i] = rotate(volume[i], angle)
-                progress_window.update_progress(
-                    int(i / volume.shape[0] * 100), f"Rotating: {i}", i, volume.shape[0]
-                )
-
-        return rotated_volume
-
-    def ask_gate(self):
-        # create a window
-        start, ok = QInputDialog.getInt(
-            self.main_window, "Start", "Enter start of the gate", 0
-        )
-        end, ok = QInputDialog.getInt(
-            self.main_window, "End", "Enter start of the gate", 0
-        )
-
-        if ok:
-            return (start, end)
-
-    def plot_signal_gate(self, signal, gate):
-        # clean the plot
-        plt.close("all")
-        plt.plot(signal)
-        plt.axvline(x=gate[0], color="r", linestyle="--")
-        plt.axvline(x=gate[1], color="r", linestyle="--")
-        plt.show()
-
-    def get_gate(self, data):
-        max_signal = np.max(data, axis=(1, 2))
-
-        self.request_gui(plt.plot, max_signal)
-
-        while True:
-            while True:
-                gate = self.request_gui(self.ask_gate)
-
-                # gate end must be greater than gate start and start must be greater than 0
-                if (gate[0] < gate[1]) and (gate[0] > 0):
-                    break
-
-            # plot the signal and the gate
-
-            self.request_gui(self.plot_signal_gate, max_signal, gate)
-
-            # ask the user if the gate is correct
-            response = self.prompt_confirmation("Is the gate correct?")
-
-            if response:
-                return gate
-
-    def align(self, data, gate):
-        # now do it for the whole volume
-        rolled_data = np.zeros_like(data)
-        for i in range(data.shape[1]):
-            for j in range(data.shape[2]):
-                signal = data[:, i, j]
-                gated_data = signal[gate[0] : gate[1]]
-                max_gated_data_index = np.argmax(gated_data, axis=0)
-                rolled = np.roll(signal, -max_gated_data_index)
-                rolled_data[:, i, j] = rolled
-        return rolled_data
