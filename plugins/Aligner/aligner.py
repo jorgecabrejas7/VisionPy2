@@ -40,6 +40,15 @@ def get_lines(image):
     plt.show()
 
 def get_lines2(image):
+    """
+    This function takes an image as input and draws a line from the first pixel to the last pixel of the image.
+    
+    Parameters:
+    image (numpy.ndarray): The input image.
+
+    Returns:
+    numpy.ndarray: The output image with a line drawn from the first pixel to the last pixel of the input image.
+    """
     print(image.shape)
 
     # get the first and last pixel of the image
@@ -60,6 +69,13 @@ def get_lines2(image):
     return image2
 
 def get_user_inputs3():
+    """
+    This function creates a dialog window with three checkboxes labeled "Main", "Left", and "Top", and an "Ok" button.
+    The state of the checkboxes after the user closes the dialog is returned as a dictionary.
+
+    Returns:
+    dict: A dictionary with the state of the checkboxes. The keys are "Main", "Left", and "Top", and the values are boolean indicating whether the checkbox is checked or not.
+    """
     # Create a window with 3 checkboxes and an Ok button
     window = QDialog()
     window.setWindowTitle("Select Reslices")
@@ -88,29 +104,18 @@ def get_user_inputs3():
 
 def get_angles(plugin, volume, reslices):
     """
-    Get the threshold values for different slices of a volume.
+    This function calculates the rotation angles for different slices of a 3D volume based on user-defined thresholds. 
+    It uses Otsu's method to threshold the middle slice of the volume and identifies the largest connected component. 
+    The orientation of this component is then used to calculate the rotation angle.
 
-    Args:
-    - self: the object instance
-    - volume: a 3D numpy array representing the volume
+    Parameters:
+    plugin (object): An instance of the plugin that is calling this function.
+    volume (numpy.ndarray): A 3D numpy array representing the volume.
+    reslices (dict): A dictionary indicating which slices to consider. Keys are "Main", "Left", and "Top", and values are boolean.
 
     Returns:
-    - user_inputs: a dictionary containing the threshold values for different slices
+    dict: A dictionary containing the calculated rotation angles for the slices. The keys are "Main", "Left", and "Top", and the values are the calculated rotation angles in degrees.
 
-    Raises:
-    - No specific exceptions are raised within this function.
-
-    Example:
-    ```python
-    # Create an instance of the class
-    instance = ClassName()
-
-    # Define a 3D numpy array representing the volume
-    volume = np.random.rand(10, 10, 10)
-
-    # Call the function to get the threshold values
-    thresholds = instance.get_angles(volume)
-    ```
     """
 
     # detect if the volume is 8bits or 16bits
@@ -294,6 +299,18 @@ def get_angles(plugin, volume, reslices):
     return angles
 
 def get_user_inputs(plugin, name, default_value=65535):
+    """
+    This function creates a dialog window that prompts the user to enter a threshold value for a given reslice name. 
+    The dialog window is created in the main window of the plugin.
+
+    Parameters:
+    plugin (object): An instance of the plugin that is calling this function.
+    name (str): The name of the reslice for which the threshold is being set.
+    default_value (int, optional): The default threshold value. Defaults to 65535.
+
+    Returns:
+    int or None: The threshold value if the user clicks "Ok", None otherwise.
+    """
     # Get the threshold value for the name reslice
     threshold, ok = QInputDialog.getInt(
         plugin.main_window,
@@ -309,14 +326,16 @@ def get_user_inputs(plugin, name, default_value=65535):
 
 def rotate_volume( volume, angle, progress_window=None):
     """
-    Rotate a 3D volume by a given angle.
+    This function rotates a 3D volume by a given angle. The rotation is applied to each slice of the volume. 
+    If a progress window is provided, the progress of the rotation is displayed in it.
 
-    Args:
+    Parameters:
     volume (numpy.ndarray): A 3D array where each slice corresponds to an image.
-    angle (float): Angle in degrees.
+    angle (float): The angle in degrees by which to rotate the volume.
+    progress_window (object, optional): An instance of a progress window in which to display the progress of the rotation. Defaults to None.
 
     Returns:
-    numpy.ndarray: A rotated 3D array.
+    numpy.ndarray: The rotated 3D volume.
     """
 
     rotated = rotate(volume[0], angle)
@@ -341,6 +360,19 @@ def rotate_volume( volume, angle, progress_window=None):
     return rotated_volume
 
 def rotate_volume_concurrent( volume, angle, progress_window=None):
+    """
+    This function rotates a 3D volume by a given angle using concurrent processing. 
+    The rotation is applied to each slice of the volume concurrently. 
+    If a progress window is provided, the progress of the rotation is displayed in it.
+
+    Parameters:
+    volume (numpy.ndarray): A 3D array where each slice corresponds to an image.
+    angle (float): The angle in degrees by which to rotate the volume.
+    progress_window (object, optional): An instance of a progress window in which to display the progress of the rotation. Defaults to None.
+
+    Returns:
+    numpy.ndarray: The rotated 3D volume.
+    """
     def rotate_slice(args):
         slice, angle = args
         return rotate(slice, angle)
