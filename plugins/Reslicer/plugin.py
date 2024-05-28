@@ -68,4 +68,5 @@ class Plugin(BasePlugin):
         else:
             # Show a message box if no file is selected
             self.prompt_error("No file selected.")
+
  
