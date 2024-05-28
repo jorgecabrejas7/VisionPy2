@@ -75,7 +75,7 @@ class Plugin(BasePlugin):
             else:
                 # Show a message box if no file is selected
                 self.prompt_error("No file selected.")
-        
+        self.update_progress(100, "Aligned", 1, 1)
         self.prompt_message("All files have been aligned.")
 
     
