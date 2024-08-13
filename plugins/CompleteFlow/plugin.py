@@ -53,10 +53,10 @@ class Plugin(BasePlugin):
         # Check if a file was selected
         if file_path:
 
-            reslices = self.request_gui(alg.get_user_inputs3)
+            reslices = {"Main": True, "Left": True, "Top": True}
 
             # Select thresholds
-            angles = self.request_gui(alg.get_angles, plugin = self, volume=volume, reslices=reslices)
+            angles = alg.get_angles_auto(plugin = self, volume=volume, reslices=reslices)
 
             logging.info("-----------------------")
 
@@ -105,7 +105,7 @@ class Plugin(BasePlugin):
                 #######CENTERING######
                 
                 # Select thresholds
-                user_inputs = self.request_gui(cnt.get_thresholds, self, volume)
+                user_inputs = cnt.get_thresholds_auto(self, volume)
 
                 # Perform operations on the selected file based on user inputs
                 if len(user_inputs) > 0:
@@ -117,26 +117,19 @@ class Plugin(BasePlugin):
                     shift = user_inputs['Main']
                     #shift volume
                     volume = cnt.shift_volume_concurrent(volume,shift,progress_window=self)
-                    
-                    #select dimensions for cropping
-                    user_inputs2 = self.request_gui(cnt.get_dimensions,self, volume)
 
-                    if user_inputs2:
-                        # cropping
-
-                        #cropping
-
-                        volume = cnt.crop_volume(volume,user_inputs2['Main'][0],user_inputs2['Main'][1])
+                    #cropping
+                    volume = cnt.crop_volume_auto(volume)
                 
                 #reslice and rotate90
 
                 #ask for reslice direction
-                reslice_direction = self.request_gui(rsl.ask_reslice,self)
+                reslice_direction = "Left"
 
                 #reslice the volume
                 resliced = rsl.reslice(volume, reslice_direction)
 
-                resliced = self.request_gui(rsl.ask_rotate,self,resliced)
+                resliced = rsl.rotate_auto(resliced)
 
                 print(resliced.shape)
 

@@ -66,7 +66,7 @@ class Plugin(BasePlugin):
                 print(time.strftime("%H:%M:%S"))
 
                 #register
-                transformation = reg.register(ut_labeled, xct_labeled)
+                transformation = reg.register(ut_labeled, xct_labeled, save_path)
 
                 print('registered')
 

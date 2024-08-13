@@ -72,5 +72,10 @@ def ask_rotate(plugin, volume):
         rotated = np.rot90(volume, 1, (1, 2))
     elif button_name == 'Rotate 90 Right':
         rotated = np.rot90(volume, -1, (1, 2))
+    else:
+        rotated = volume
 
     return rotated
+
+def rotate_auto(volume):
+    return np.rot90(volume, -1, (1, 2))

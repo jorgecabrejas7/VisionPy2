@@ -43,7 +43,11 @@ def auto_gate(volume):
     # Find the brightest slice
     brightest_slice = find_brightest_ut(volume)
 
-    return (brightest_slice - 5, brightest_slice + 5)
+    resolution = 0.02
+
+    range = int(np.round(0.1/resolution))
+
+    return (brightest_slice - range, brightest_slice + range)
 
 def crop_image_center(image):
     """
@@ -192,7 +196,7 @@ def hillbert_transform(volume):
 
     volume = volume - 128
 
-    data_hilbert = hilbert(volume)
+    data_hilbert = hilbert(volume, axis=0)
     amplitude_envelope = np.abs(data_hilbert).astype(np.uint8)
     print(amplitude_envelope.shape)
 

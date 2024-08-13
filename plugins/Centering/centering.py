@@ -156,6 +156,111 @@ def get_thresholds(plugin,volume):
     
     return user_inputs
 
+def get_thresholds_auto(plugin,volume):
+    """
+    Get the threshold values for different slices of a volume.
+
+    Args:
+    - self: the object instance
+    - volume: a 3D numpy array representing the volume
+
+    Returns:
+    - user_inputs: a dictionary containing the threshold values for different slices
+
+    Raises:
+    - No specific exceptions are raised within this function.
+
+    Example:
+    ```python
+    # Create an instance of the class
+    instance = ClassName()
+
+    # Define a 3D numpy array representing the volume
+    volume = np.random.rand(10, 10, 10)
+
+    # Call the function to get the threshold values
+    thresholds = instance.get_thresholds(volume)
+    ```
+    """
+
+    #detect if the volume is 8bits or 16bits
+    if volume.dtype == np.uint8:
+        is8bit = True
+    else:
+        is8bit = False
+
+    names = ['Main']
+
+    user_inputs = {'Main':None}
+
+    if is8bit:
+        top_threshold = 255
+    else:
+        top_threshold = 65535
+
+    for name in names:
+
+        top_threshold = 255
+
+        #Check if the threshold is valid by aplying it to the middle slice
+        if top_threshold != None:
+
+            middle_slice = volume[len(volume)//2]
+
+            top_index = np.where(middle_slice > top_threshold)
+
+            if is8bit:
+                threshold_value = threshold_otsu(middle_slice[middle_slice > 10])
+            else:
+                threshold_value = threshold_otsu(middle_slice[middle_slice > 10000])
+
+            print('threshold value is: ', threshold_value)
+
+            thresholded_slice = middle_slice > threshold_value
+
+            thresholded_slice[top_index] = 0
+
+            # Label the objects in the thresholded slice
+            labeled_slice = label(thresholded_slice)
+
+            # Get the properties of each labeled region
+            regions = regionprops(labeled_slice)
+
+            if regions == []:
+                #Show a message box if invalid threshold is selected
+                msg_box = QMessageBox(plugin.main_window)
+                msg_box.setText("To low threshold selected.")
+                msg_box.exec()
+                continue
+
+            # Find the largest connected component
+            largest_component = max(regions, key=lambda region: region.area)
+
+            # Create a mask to keep only the largest component
+            mask = np.zeros_like(labeled_slice)
+            mask[labeled_slice == largest_component.label] = 1
+
+            #find the center of mass of the largest component
+            center_of_mass = ndimage.measurements.center_of_mass(mask)
+
+            #center the image in the center of mass
+            center = np.array(middle_slice.shape) // 2
+            shift = np.array(center) - np.array(center_of_mass)
+            shifted_slice = ndimage.shift(mask, shift)
+
+            # Print the center of mass
+            print(f"The center of the largest component is {center_of_mass}.")
+
+            user_inputs[name] = shift
+
+        else:
+            #Show a message box if no threshold is selected
+            msg_box = QMessageBox(plugin.main_window)
+            msg_box.setText("No threshold selected.")
+            msg_box.exec()
+    
+    return user_inputs
+
 def get_dimensions(plugin,volume):
     """
     Get the dimensions for different slices of a volume.
@@ -282,6 +387,55 @@ def crop_volume(volume, x, y):
     Returns:
     numpy.ndarray: The cropped volume.
     """
+    z,old_x, old_y = volume.shape
+    
+    # Calculate the starting and ending indices for cropping
+                
+    start_x = (old_x - x) // 2
+    start_y = (old_y - y) // 2
+    end_x = start_x + x
+    end_y = start_y + y
+    
+    # Crop the volume
+    cropped_volume = volume[:, start_x:end_x, start_y:end_y]
+    
+    return cropped_volume
+
+def crop_volume_auto(volume):
+    """
+    Crop a volume to fit (x, y) dimensions.
+    
+    Args:
+    volume (numpy.ndarray): A 3D array representing the volume.
+    x (int): The desired x dimension.
+    y (int): The desired y dimension.
+    
+    Returns:
+    numpy.ndarray: The cropped volume.
+    """
+
+    #max proyection
+    max_proyection = np.max(volume,axis=0)
+
+    #otsu threshold
+    threshold_value = threshold_otsu(max_proyection)
+
+    thresholded_slice = max_proyection > threshold_value
+
+    # Label the objects in the thresholded slice
+    labeled_slice = label(thresholded_slice)
+
+    # Get the bounding box of the largest connected component
+    regions = regionprops(labeled_slice)
+    largest_component = max(regions, key=lambda region: region.area)
+    minr, minc, maxr, maxc = largest_component.bbox
+
+    # Calculate the dimensions for cropping
+
+    x = (maxr - minr) + 20
+    y = (maxc - minc) + 20
+
+
     z,old_x, old_y = volume.shape
     
     # Calculate the starting and ending indices for cropping
