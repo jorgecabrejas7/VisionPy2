@@ -69,7 +69,7 @@ def nearest_bounding_box(minr, minc, maxr, maxc, divisor):
 
     return minr, minc, maxr, maxc
 
-def preprocess(onlypores,mask,ut_rf,ut_amp, xct_resolution = 0.025, ut_resolution = 1):
+def preprocess(onlypores,mask,ut_rf, xct_resolution = 0.025, ut_resolution = 1):
 
     #Cropeamos onlypores y la mascara para quitarnos el fondo y le aplicamos la misma bounding box a los datos de UT
 
@@ -102,11 +102,10 @@ def preprocess(onlypores,mask,ut_rf,ut_amp, xct_resolution = 0.025, ut_resolutio
     maxc_ut = int(maxc_xct * scaling_factor)
 
     ut_rf_cropped = ut_rf[:,minr_ut:maxr_ut, minc_ut:maxc_ut]
-    ut_amp_cropped = ut_amp[:,minr_ut:maxr_ut, minc_ut:maxc_ut]
 
-    return onlypores_cropped, mask_cropped, ut_rf_cropped, ut_amp_cropped
+    return onlypores_cropped, mask_cropped, ut_rf_cropped
 
-def patch(onlypores_cropped, mask_cropped, ut_rf_cropped, ut_amp_cropped, ut_patch_size = 3, ut_step_size =1, xct_resolution = 0.025, ut_resolution = 1):
+def patch(onlypores_cropped, mask_cropped, ut_rf_cropped, ut_patch_size = 3, ut_step_size =1, xct_resolution = 0.025, ut_resolution = 1):
 
     #compute xct patch size
     ut_patch_size = 3
@@ -115,7 +114,6 @@ def patch(onlypores_cropped, mask_cropped, ut_rf_cropped, ut_amp_cropped, ut_pat
     xct_step_size = int(np.round(calculate_pixels(ut_resolution, xct_resolution, ut_step_size)))
 
     #crop volumes to fit patch size division
-    ut_amp_cropped = crop_image_to_patch_size(ut_amp_cropped, ut_patch_size)
     ut_rf_cropped = crop_image_to_patch_size(ut_rf_cropped, ut_patch_size)
     onlypores_cropped = crop_image_to_patch_size(onlypores_cropped, xct_patch_size)
     mask_cropped = crop_image_to_patch_size(mask_cropped, xct_patch_size)
@@ -132,14 +130,13 @@ def patch(onlypores_cropped, mask_cropped, ut_rf_cropped, ut_amp_cropped, ut_pat
     
     #divide into patches
     patches_ut = divide_into_patches(ut_rf_cropped, ut_patch_size, ut_step_size)
-    patches_ut_amp = divide_into_patches(ut_amp_cropped, ut_patch_size, ut_step_size)
 
     patches_onlypores = divide_into_patches(onlypores_cropped, xct_patch_size, xct_step_size)
     patches_mask = divide_into_patches(mask_cropped,xct_patch_size, xct_step_size)
 
-    return patches_onlypores, patches_mask, patches_ut, patches_ut_amp 
+    return patches_onlypores, patches_mask, patches_ut
 
-def datasets1_2(patches_onlypores, patches_mask, patches_ut, patches_ut_amp, folder):
+def datasets1_2(patches_onlypores, patches_mask, patches_ut, folder, ut_patch_size):
 
     #compute the sum of onlypores and mask
     sum_onlypores_patches = np.sum(patches_onlypores, axis = 1)
@@ -172,13 +169,7 @@ def datasets1_2(patches_onlypores, patches_mask, patches_ut, patches_ut_amp, fol
 
     ut_patches_reshaped = patches_ut.transpose(0, 2, 3, 1)
 
-    ut_amp_patches_reshaped = patches_ut_amp.transpose(0, 2, 3, 1)
-
     ut_patches_reshaped = ut_patches_reshaped.reshape(ut_patches_reshaped.shape[0], -1)
-
-    ut_amp_patches_reshaped = ut_amp_patches_reshaped.reshape(patches_ut_amp.shape[0], -1)
-
-    combined_ut = np.hstack((ut_patches_reshaped, ut_amp_patches_reshaped))
 
     #create both dataframes
 
@@ -186,19 +177,14 @@ def datasets1_2(patches_onlypores, patches_mask, patches_ut, patches_ut_amp, fol
 
     columns_ut = []
 
-    half = combined_ut.shape[1] // 2
-
-    for i in range(combined_ut.shape[1]):
-        if i < half:
-            columns_ut.append(f'ut_rf_{i}')
-        else:
-            columns_ut.append(f'ut_amp_{i - half}')
+    for i in range(ut_patches_reshaped.shape[1]):
+        columns_ut.append(f'ut_rf_{i}')
 
     columns_ut = np.array(columns_ut)
 
     #dataframe for patch vs volfrac dataset
 
-    patch_vs_volfrac = np.hstack((combined_ut, volfrac.reshape(-1,1)))
+    patch_vs_volfrac = np.hstack((ut_patches_reshaped, volfrac.reshape(-1,1)))
 
     df_patch_vs_volfrac = pd.DataFrame(patch_vs_volfrac, columns = np.append(columns_ut, 'volfrac'))
 
@@ -213,7 +199,7 @@ def datasets1_2(patches_onlypores, patches_mask, patches_ut, patches_ut_amp, fol
 
     #dataframe for patch vs volfrac patch dataset
 
-    patch_vs_patch = np.hstack((combined_ut, volfrac_patches))
+    patch_vs_patch = np.hstack((ut_patches_reshaped, volfrac_patches))
 
     columns = np.append(columns_ut, columns_volfrac)
 
@@ -221,21 +207,21 @@ def datasets1_2(patches_onlypores, patches_mask, patches_ut, patches_ut_amp, fol
 
     #save the dataframes
 
-    df_patch_vs_volfrac.to_csv(folder / 'patch_vs_volfrac.csv', index = False)
+    df_patch_vs_volfrac.to_csv(folder / ('patch_vs_volfrac_' + str(ut_patch_size) + '.csv'), index = False)
 
-    df_patch_vs_patch.to_csv(folder / 'patch_vs_patch.csv', index = False)
+    df_patch_vs_patch.to_csv(folder / ('patch_vs_patch_'+ str(ut_patch_size) + '.csv'), index = False)
 
-def main(onlypores,mask,ut_rf,ut_amp,folder, xct_resolution = 0.025, ut_resolution = 1,ut_patch_size = 3, ut_step_size =1):
+def main(onlypores,mask,ut_rf,folder, xct_resolution = 0.025, ut_resolution = 1,ut_patch_size = 3, ut_step_size =1):
 
     print('Preprocessing and patching the images...')
     #preprocess the images
-    onlypores_cropped, mask_cropped, ut_rf_cropped, ut_amp_cropped = preprocess(onlypores,mask,ut_rf,ut_amp, xct_resolution, ut_resolution)
+    onlypores_cropped, mask_cropped, ut_rf_cropped = preprocess(onlypores,mask,ut_rf, xct_resolution, ut_resolution)
     print('Patching the images...')
     #patch the images
-    patches_onlypores, patches_mask, patches_ut, patches_ut_amp = patch(onlypores_cropped, mask_cropped, ut_rf_cropped, ut_amp_cropped, ut_patch_size, ut_step_size, xct_resolution, ut_resolution)
+    patches_onlypores, patches_mask, patches_ut = patch(onlypores_cropped, mask_cropped, ut_rf_cropped, ut_patch_size, ut_step_size, xct_resolution, ut_resolution)
     print('Creating the datasets...')
     #create the datasets
-    datasets1_2(patches_onlypores, patches_mask, patches_ut, patches_ut_amp, folder)
+    datasets1_2(patches_onlypores, patches_mask, patches_ut, folder,ut_patch_size)
 
 
     

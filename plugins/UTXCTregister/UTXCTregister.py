@@ -604,9 +604,13 @@ def main(ut,rf,xct,padded=False):
     sorted_xct_points = xct_points[sorted_indices_xct]
 
     #check if there are at least 2 points
-    if len(sorted_ut_points) < 3 or len(sorted_xct_points) < 3:
-        print('Not enough points')
-        raise ValueError('Not enough points')
+    if len(sorted_ut_points) < 3:
+        print('Not enough UT points')
+        raise ValueError('Not enough UT points')
+
+    if len(sorted_xct_points) < 3:
+        print('Not enough XCT points')
+        raise ValueError('Not enough XCT points')
 
     #check if there are the same number of points
     if len(sorted_ut_points) != len(sorted_xct_points):
