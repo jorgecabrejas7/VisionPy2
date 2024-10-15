@@ -9,6 +9,7 @@ from scipy.ndimage import minimum_filter, label, binary_fill_holes
 from skimage.measure import regionprops
 import cv2
 import scipy.ndimage
+from joblib import Parallel, delayed
 
 
 def dilate_image(image, kernel_size=5, iterations=1):
@@ -326,7 +327,7 @@ def xct_preprocessing(xct,original_resolution=0.025,new_resolution=1):
     return centers_painted_xct
 
 def ut_preprocessing(ut):
-
+    
     #get the frontwall slice id
     frontwall = find_brightest_ut(ut)
 
@@ -371,13 +372,8 @@ def ut_preprocessing(ut):
 
 def register(labeled_ut, labeled_xct, save_path):
 
-    ut_mask = dilate_image(labeled_ut, 2)
-    xct_mask = dilate_image(labeled_xct, 2)
-
     fixed_image = sitk.GetImageFromArray(labeled_ut)
     moving_image = sitk.GetImageFromArray(labeled_xct)
-    fixed_mask = sitk.GetImageFromArray(labeled_ut)
-    moving_mask = sitk.GetImageFromArray(labeled_xct)
 
     # Initial alignment of the two volumes
     initial_transform = sitk.CenteredTransformInitializer(fixed_image, 
@@ -498,48 +494,61 @@ def apply_transform(transform, ut, xct, original_resolution=0.025):
 
     return resampled_xct
 
-def apply_transform_parameters(angle, x, y, ut, xct, original_resolution=0.025):
-    transform = sitk.Euler3DTransform()
+def apply_transform_parameters(matrix, ut, xct, original_resolution=0.025): #(X,Y,Z) axes
+    big_shape = calculate_new_dimensions(1,original_resolution,ut.shape[:2])
 
-    # Create a new set of parameters for the 3D transform
-    # Set the rotation parameters to the same as the 2D transform
-    # Set the translation parameters to the same as the 2D transform for x and y, and 0 for z
-    params_3d2 = (0, 0, angle, x, y, 0)
-    transform.SetParameters(params_3d2)
+    transformed_volume = []
 
-    # Prepare the ut and xct files to be resampled
-    new_shape = calculate_new_dimensions(1, original_resolution, (ut.shape[0], ut.shape[1]))
-    big_ut = np.zeros((xct.shape[2], new_shape[0], new_shape[1]), dtype=np.uint8)
+    for i in range(xct.shape[2]):
+        transformed_volume.append(scipy.ndimage.affine_transform(xct[:,:,i], matrix[:2,:], output_shape=big_shape))
 
-    big_ut_itk = sitk.GetImageFromArray(big_ut)
-    big_ut_itk.SetSpacing((original_resolution, original_resolution, original_resolution))
+    transformed_volume = np.array(transformed_volume)
 
-    xct = np.swapaxes(xct, 2, 1)
-    xct = np.swapaxes(xct, 1, 0)
+    transformed_volume = np.swapaxes(transformed_volume, 0, 1)
+    transformed_volume = np.swapaxes(transformed_volume, 1, 2)
 
-    xct_itk = sitk.GetImageFromArray(xct)
-    xct_itk.SetSpacing((original_resolution, original_resolution, original_resolution))
+    return transformed_volume
 
-    # # Calculate the centers of both images
-    # ut_center = np.array(big_ut_itk.GetSize()) * np.array(big_ut_itk.GetSpacing()) / 2.0
-    # xct_center = np.array(xct_itk.GetSize()) * np.array(xct_itk.GetSpacing()) / 2.0
+def apply_transform_parameters_paralel(matrix, ut, xct, original_resolution=0.025):
 
-    # # Adjust the origin of the xct image to align its center with the center of the ut image
-    # xct_origin = np.array(big_ut_itk.GetOrigin()) + (ut_center - xct_center)
-    # xct_itk.SetOrigin(xct_origin.tolist())
+    big_shape = calculate_new_dimensions(1,original_resolution,ut.shape[:2])
 
-    # Apply the transformation
-    resampler = sitk.ResampleImageFilter()
-    resampler.SetTransform(transform)
-    resampler.SetOutputSpacing(big_ut_itk.GetSpacing())
-    resampler.SetOutputOrigin(big_ut_itk.GetOrigin())
-    resampler.SetOutputDirection(big_ut_itk.GetDirection())
-    resampler.SetSize(big_ut_itk.GetSize())
+    def func(slice, matrix, shape):
+    # Apply affine transform to the current slice
+        return scipy.ndimage.affine_transform(slice, matrix, output_shape=shape)
 
-    resampled_xct = resampler.Execute(xct_itk)
-    resampled_xct = sitk.GetArrayFromImage(resampled_xct).astype(np.uint8)
+    # Create the function to apply on each slice
+    def process_slice(z, volume, matrix, shape):
+        current_slice = volume[:, :, z]  # Extract the (X, Y) slice
+        return func(current_slice, matrix, shape)  # Apply the transformation
 
-    return resampled_xct
+    # Use joblib's Parallel to apply the function concurrently with a progress bar
+    n_jobs = -1  # Use all available cores
+    n_slices = xct.shape[2]  # Number of slices in the Z dimension
+
+    # Use tqdm for progress bar
+    transformed_slices = Parallel(n_jobs=n_jobs)(
+        delayed(process_slice)(z, xct, matrix[:2,:], big_shape) for z in range(n_slices)
+    )
+
+    # Reassemble the transformed slices into the final 3D array
+    transformed_volume = np.stack(transformed_slices, axis=2)
+
+    return transformed_volume
+
+def get_rotation_angle(transformation_matrix):
+    """
+    Extract the rotation angle from the transformation matrix.
+    
+    Args:
+    transformation_matrix (numpy.ndarray): A 3x3 transformation matrix.
+    
+    Returns:
+    float: The rotation angle in radians.
+    """
+    R = transformation_matrix[:2, :2]
+    angle = np.arctan2(R[1, 0], R[0, 0])
+    return angle
 
 
 def main_old(ut,xct, path):
@@ -639,5 +648,66 @@ def main(ut,rf,xct,padded=False):
     if not padded:
 
         return (transformed_volume,xct)
+
+    return transformed_volume
+
+
+# new register
+
+def main_2(ut,xct):
+
+    print('Preprocessing')
+
+    ut_centers = label_objects(ut_preprocessing(ut))
+
+    xct_centers = label_objects(xct_preprocessing(xct))
+
+    #extract the points from the images
+    ut_points = extract_points(ut_centers)
+    xct_points = extract_points(xct_centers)
+
+    sorted_indices_ut = np.argsort(ut_points[:, -1])
+    sorted_indices_xct = np.argsort(xct_points[:, -1])
+
+    # Use these indices to sort the original array
+    sorted_ut_points = ut_points[sorted_indices_ut]
+    sorted_xct_points = xct_points[sorted_indices_xct]
+
+    #check if there are at least 2 points
+    if len(sorted_ut_points) < 3:
+        print('Not enough UT points')
+        raise ValueError('Not enough UT points')
+
+    if len(sorted_xct_points) < 3:
+        print('Not enough XCT points')
+        raise ValueError('Not enough XCT points')
+
+    #check if there are the same number of points
+    if len(sorted_ut_points) != len(sorted_xct_points):
+        print('Different number of points')
+        raise ValueError('Different number of points')
+    
+    print('Preprocessed')
+
+    print('Registering')
+
+    transformation_matrix = rigid_body_transformation_matrix(sorted_xct_points[:,:2],sorted_ut_points[:,:2])
+    scaled_transformation_matrix = scale_transformation_matrix(transformation_matrix, 1/0.025)
+
+    print('Registered')
+
+    parameters = scaled_transformation_matrix
+
+    return parameters
+
+def apply_registration(ut,xct,parameters): #(X,Y,Z) axes
+
+    transformation_matrix = parameters
+
+    print('Applying transformation')
+
+    transformed_volume = apply_transform_parameters_paralel(transformation_matrix,ut,xct)
+
+    print('Transformation applied')
 
     return transformed_volume

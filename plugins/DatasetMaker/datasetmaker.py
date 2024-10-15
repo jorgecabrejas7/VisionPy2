@@ -1,12 +1,13 @@
 import numpy as np
 import pandas as pd
-from pathlib import Path
 from tqdm import tqdm
-import os
 from skimage import measure
 from skimage.measure import regionprops
 import pandas as pd
 from skimage.util import view_as_windows
+from skimage.measure import label, regionprops
+import scipy.ndimage
+from joblib import Parallel, delayed
 
 
 def divide_into_patches(image, patch_size, step_size):
@@ -122,8 +123,6 @@ def patch(onlypores_cropped, mask_cropped, ut_rf_cropped, ut_patch_size = 3, ut_
     ut_shape = calculate_patch_shape(ut_rf_cropped.shape, ut_patch_size, ut_step_size)
     xct_shape = calculate_patch_shape(onlypores_cropped.shape, xct_patch_size, xct_step_size)
 
-    print(ut_shape[0], xct_shape[0])
-
     if not (ut_shape[0] == xct_shape[0]):
         print('Patches are not the same')
         return 0,0,0,0
@@ -132,15 +131,165 @@ def patch(onlypores_cropped, mask_cropped, ut_rf_cropped, ut_patch_size = 3, ut_
     patches_ut = divide_into_patches(ut_rf_cropped, ut_patch_size, ut_step_size)
 
     patches_onlypores = divide_into_patches(onlypores_cropped, xct_patch_size, xct_step_size)
+    center_size = int(patches_onlypores.shape[2] / ut_patch_size)
+    patches_onlypores = patches_onlypores[:, :, center_size:-center_size, center_size:-center_size]
     patches_mask = divide_into_patches(mask_cropped,xct_patch_size, xct_step_size)
+    patches_mask = patches_mask[:, :, center_size:-center_size, center_size:-center_size]
 
     return patches_onlypores, patches_mask, patches_ut
 
-def datasets1_2(patches_onlypores, patches_mask, patches_ut, folder, ut_patch_size):
+def clean_material(sum_mask, volfrac, areafrac):
+
+    #get the value of a patch that is full material
+    full_material = np.max(sum_mask)
+    #get the percentage of material in each patch
+    mat_percentage = sum_mask/full_material
+    #the patches with less tahn 80% materail will be discarded
+    indexes = np.where(mat_percentage < 0.8)[0]
+    volfrac[indexes] = -1
+    areafrac[indexes] = -1
+
+    return volfrac,areafrac
+
+def clean_pores_3D(patches_onlypores):
+
+    # Function to process each slice
+    def process_slice(i, patches_onlypores): 
+        dilated_image = scipy.ndimage.binary_dilation(patches_onlypores[i], iterations=2) #dilate to group near pores
+        labeled_image = label(dilated_image) #label the image
+        #Now we get the indexes of the pixels that are not pores in the original image
+        indexes = np.where(patches_onlypores[i] == 0) 
+        #we delete the pixels that are not pores in the labeled image, because due to the dilation they are now labeled as pores
+        labeled_image[indexes] = 0
+        
+        properties = []  # To store properties for this slice
+        
+        # Loop over the labels and get the needed properties
+        for l in np.unique(labeled_image):
+            if l == 0 and (np.unique(label) != 1):
+                continue
+
+            # Get the mask of the label so we only process the region
+            indexes = np.where(labeled_image == l)
+            mask = np.zeros_like(labeled_image)
+            mask[indexes] = 1
+
+            #we do the projections in xy to get the major and minor axis and in xz to get the length in z
+            xyproj = np.max(mask, axis=0)
+            xzproj = np.max(mask, axis=1)
+
+            #now we get the first and last pixel in z to now the length of the pore in z 
+
+            # Find the indices of all non-zero elements
+            non_zero_indices = np.nonzero(xzproj)
+
+            if non_zero_indices[0].size == 0:  # Handle case where there are no non-zero elements
+                continue
+
+            # Extract the row indices
+            row_indices = non_zero_indices[0]
+
+            # Determine the first and last row with a labeled pixel
+            first_row = np.min(row_indices)
+            last_row = np.max(row_indices)
+
+            # Get properties in each projection
+            xyprops = regionprops(xyproj)
+            xzprops = [{'Z Length': last_row - first_row}]
+
+            #save the properties in a dictionary
+            for xy, xz in zip(xyprops, xzprops):
+                if l == 0:
+                    l = 1
+                properties.append({
+                    'Image Index': i,
+                    'Label': l,
+                    'xy Major Axis Length': xy.major_axis_length,
+                    'xy Minor Axis Length': xy.minor_axis_length,
+                    'Z Length': xz['Z Length'],
+                    'Solidity': xy.solidity
+                })
+            
+            if l == 0:
+                labeled_image[labeled_image == 0] = 1
+        
+        return labeled_image, properties
+
+    # Assuming proj_onlypores is already loaded as a numpy array
+    # proj_onlypores = ...
+
+    # Parallel processing of slices
+    results = Parallel(n_jobs=-1, backend='loky')(delayed(process_slice)(i, patches_onlypores) for i in range(patches_onlypores.shape[0]))
+
+    # Collect results
+    labeled_volume_onlypores, properties_list = zip(*results)
+
+    labeled_volume_onlypores = np.array(labeled_volume_onlypores)
+
+    # Convert the properties list to a pandas DataFrame
+    properties_df_3D = pd.DataFrame([item for sublist in properties_list for item in sublist])
+
+    #now clean the pores that are too small
+    #we dont want the pores that are smaller than 12 pixels in their major axis in xy
+
+    minor_axis_lengths = properties_df_3D['xy Minor Axis Length'].values
+
+    indexes = np.where(minor_axis_lengths < 12 )[0]
+
+    cleaned_labeled_patches_onlypores = np.copy(labeled_volume_onlypores)
+
+    for i in indexes:
+        row = properties_df_3D.iloc[i]
+        img_idx = int(row['Image Index'])
+        delete_indexes = np.where(labeled_volume_onlypores[img_idx] == row['Label'])
+        cleaned_labeled_patches_onlypores[img_idx][delete_indexes] = 0
+
+    cleaned_patches_onlypores = cleaned_labeled_patches_onlypores > 0
+
+    return cleaned_patches_onlypores
+
+def layer_cleaning(mask_cropped, onlypores_cropped):
+
+    layer_thickness = 0.508 #mm
+
+    layer_thickness = int(np.round(layer_thickness / 0.025))
+
+    indices = np.where(mask_cropped == 1)[0]
+
+    frontwall = indices[0]
+
+    backwall = indices[-1]
+
+    edges = [frontwall]
+
+    while True:
+
+        edge = edges[-1]
+
+        if edge + layer_thickness > backwall:
+
+            break
+
+        edges.append(edge + layer_thickness)
+
+    onlypores_cleaned = np.copy(onlypores_cropped)
+
+    #cleaning the last two layers because ut can't see them
+
+    onlypores_cleaned[edges[-3]:] = 0
+    
+    return onlypores_cleaned
+
+     
+
+def datasets1(patches_onlypores, patches_mask, patches_ut, folder, ut_patch_size):
 
     #compute the sum of onlypores and mask
     sum_onlypores_patches = np.sum(patches_onlypores, axis = 1)
     sum_mask_patches = np.sum(patches_mask, axis = 1)
+
+    proj_onlypores = np.max(patches_onlypores, axis = 1)
+    proj_mask = np.max(patches_mask, axis = 1)
 
     #######volfrac for patch vs volfrac dataset
 
@@ -155,15 +304,18 @@ def datasets1_2(patches_onlypores, patches_mask, patches_ut, folder, ut_patch_si
 
     volfrac[zero_indices] = -1
 
-    ########volfrac for patch vs volfrac patch dataset
+    #areafrac
+    sum_onlypores_area = np.sum(proj_onlypores, axis = (1,2)).astype(np.int16)
+    sum_mask_area = np.sum(proj_mask, axis = (1,2)).astype(np.int16)
 
-    zero_indices = np.where(sum_mask_patches == 0)
+    areafrac = sum_onlypores_area / (sum_mask_area + 1e-6)
 
-    volfrac_patches = sum_onlypores_patches / (sum_mask_patches + 1e-6)
+    zero_indices = np.where(sum_mask_area == 0)
 
-    volfrac_patches[zero_indices] = -1
+    areafrac[zero_indices] = -1
 
-    volfrac_patches = volfrac_patches.reshape(-1, volfrac_patches.shape[1] * volfrac_patches.shape[2])
+    #clean volfrac and areafrac
+    volfrac, areafrac = clean_material(sum_mask, volfrac, areafrac)
 
     #prepare ut for dataframe
 
@@ -184,45 +336,30 @@ def datasets1_2(patches_onlypores, patches_mask, patches_ut, folder, ut_patch_si
 
     #dataframe for patch vs volfrac dataset
 
-    patch_vs_volfrac = np.hstack((ut_patches_reshaped, volfrac.reshape(-1,1)))
+    patch_vs_volfrac = np.hstack((ut_patches_reshaped, volfrac.reshape(-1,1), areafrac.reshape(-1,1)))
 
-    df_patch_vs_volfrac = pd.DataFrame(patch_vs_volfrac, columns = np.append(columns_ut, 'volfrac'))
-
-    
-    #column names for volfrac patches dataframes
-    columns_volfrac = []
-
-    for i in range(volfrac_patches.shape[1]):
-        columns_volfrac.append(f'volfrac_{i}')
-
-    columns_volfrac = np.array(columns_volfrac)
-
-    #dataframe for patch vs volfrac patch dataset
-
-    patch_vs_patch = np.hstack((ut_patches_reshaped, volfrac_patches))
-
-    columns = np.append(columns_ut, columns_volfrac)
-
-    df_patch_vs_patch = pd.DataFrame(patch_vs_patch, columns = columns)
+    df_patch_vs_volfrac = pd.DataFrame(patch_vs_volfrac, columns = np.append(columns_ut, ['volfrac','areafrac']))
 
     #save the dataframes
 
     df_patch_vs_volfrac.to_csv(folder / ('patch_vs_volfrac_' + str(ut_patch_size) + '.csv'), index = False)
 
-    df_patch_vs_patch.to_csv(folder / ('patch_vs_patch_'+ str(ut_patch_size) + '.csv'), index = False)
+    return df_patch_vs_volfrac
 
 def main(onlypores,mask,ut_rf,folder, xct_resolution = 0.025, ut_resolution = 1,ut_patch_size = 3, ut_step_size =1):
-
+    from time import time
     print('Preprocessing and patching the images...')
     #preprocess the images
     onlypores_cropped, mask_cropped, ut_rf_cropped = preprocess(onlypores,mask,ut_rf, xct_resolution, ut_resolution)
+    print('Layer cleaning')
+    onlypores_cropped = layer_cleaning(mask_cropped, onlypores_cropped)
     print('Patching the images...')
     #patch the images
     patches_onlypores, patches_mask, patches_ut = patch(onlypores_cropped, mask_cropped, ut_rf_cropped, ut_patch_size, ut_step_size, xct_resolution, ut_resolution)
+    print('Cleaning the pores...')
+    patches_onlypores = clean_pores_3D(patches_onlypores)
     print('Creating the datasets...')
     #create the datasets
-    datasets1_2(patches_onlypores, patches_mask, patches_ut, folder,ut_patch_size)
-
-
+    datasets1(patches_onlypores, patches_mask, patches_ut, folder,ut_patch_size)
     
 

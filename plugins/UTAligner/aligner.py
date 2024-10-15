@@ -9,6 +9,7 @@ from skimage.measure import regionprops
 from scipy.ndimage import binary_fill_holes
 from skimage import feature
 from scipy.ndimage import rotate
+import scipy
 
 def get_angle(volume, gate):
     """
@@ -119,7 +120,7 @@ def get_lines2( image):
 
     return image2
 
-def rotate_volume( volume, angle, progress_window=None):
+def rotate_volume_deprecated( volume, angle, progress_window=None):
     """
     Rotate a 3D volume by a given angle.
 
@@ -147,6 +148,27 @@ def rotate_volume( volume, angle, progress_window=None):
             progress_window.update_progress(
                 int(i / volume.shape[0] * 100), f"Rotating: {i}", i, volume.shape[0]
             )
+
+    return rotated_volume
+
+def rotate_volume(volume, angle, progress_window=None):
+
+    volume = np.swapaxes(volume, 0, 1)
+    volume = np.swapaxes(volume, 1, 2)
+
+    theta = np.radians(angle)
+    cos_theta, sin_theta = np.cos(theta), np.sin(theta)
+    rotation_matrix = np.array([
+        [cos_theta, -sin_theta, 0],
+        [sin_theta, cos_theta, 0],
+        [0, 0, 1]
+    ])
+
+    # Apply the affine transform
+    rotated_volume = scipy.ndimage.affine_transform(volume, rotation_matrix, order = 1, mode = 'constant', cval = 128)
+
+    rotated_volume = np.swapaxes(rotated_volume, 1, 2)
+    rotated_volume = np.swapaxes(rotated_volume, 0, 1)
 
     return rotated_volume
 

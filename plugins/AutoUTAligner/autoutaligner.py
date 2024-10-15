@@ -6,6 +6,24 @@ from scipy.ndimage import binary_fill_holes
 from skimage import feature
 from scipy.signal import hilbert
 
+def get_lines2( image):
+    # get the first and last pixel of the image
+    linea = np.where(image >= 1)
+    x0 = linea[0][0]
+    x1 = linea[0][-1]
+    y0 = linea[1][0]
+    y1 = linea[1][-1]
+
+    # create a image with the same size as the input image
+    image2 = np.zeros_like(image)
+
+    import cv2
+
+    # draw the line on the image2
+    cv2.line(image2, (y0, x0), (y1, x1), (1, 1, 1), 2)
+
+    return image2
+
 def find_brightest_ut(volume):
 
     """
@@ -192,13 +210,14 @@ def hillbert_transform(volume):
     numpy.ndarray: Amplitude envelope of the Hilbert transform.
     """
 
+    volume = volume.copy()
+
     volume = volume.astype(np.int16)
 
     volume = volume - 128
 
     data_hilbert = hilbert(volume, axis=0)
     amplitude_envelope = np.abs(data_hilbert).astype(np.uint8)
-    print(amplitude_envelope.shape)
 
     return amplitude_envelope
 
