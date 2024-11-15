@@ -232,9 +232,9 @@ def clean_pores_3D(patches_onlypores):
     #now clean the pores that are too small
     #we dont want the pores that are smaller than 12 pixels in their major axis in xy
 
-    minor_axis_lengths = properties_df_3D['xy Minor Axis Length'].values
+    z_lengths = properties_df_3D['Z Length'].values
 
-    indexes = np.where(minor_axis_lengths < 12 )[0]
+    indexes = np.where(z_lengths < 12 )[0]
 
     cleaned_labeled_patches_onlypores = np.copy(labeled_volume_onlypores)
 
