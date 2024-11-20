@@ -42,16 +42,16 @@ class Plugin(BasePlugin):
             save_path = self.select_save_file("Select file to save the resliced volume")
         else:
             save_path = self.select_folder("Select folder to save the resliced volume")
-
-        if file_load:
-            # load the file
-            volume = tiff.imread(file_path)
-        else:
-            # load the file
-            volume = image_sequence.read_sequence2(file_path, progress_window=self)
-
+        
         # Check if a file was selected
-        if file_path:
+        if file_path and save_path:
+
+            if file_load:
+                # load the file
+                volume = tiff.imread(file_path)
+            else:
+                # load the file
+                volume = image_sequence.read_sequence2(file_path, progress_window=self)
 
             reslices = {"Main": True, "Left": True, "Top": True}
 

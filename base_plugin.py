@@ -9,7 +9,7 @@ from abc import abstractmethod
 import tifffile as tiff
 import zarr
 from PyQt6.QtCore import QEventLoop, QObject, pyqtSignal
-from PyQt6.QtWidgets import QFileDialog, QMessageBox, QDialog, QVBoxLayout, QPushButton
+from PyQt6.QtWidgets import QFileDialog, QMessageBox, QDialog, QVBoxLayout, QPushButton, QInputDialog
 
 from utils import image_sequence
 from utils.gui_utils import virtual_sequence_bbox, virtual_sequence_slice, get_bbox
@@ -386,3 +386,27 @@ class BasePlugin(QObject):
                 return reply == QMessageBox.StandardButton.Yes
 
             return self.request_gui(confirmation_callback, caption=message_caption)
+
+    def ask_number(self, prompt_text: str, is_integer: bool = True):
+        """
+        Prompts the user to enter a number.
+
+        Args:
+            prompt_text (str): The text to display in the prompt window.
+            is_integer (bool): If True, expects an integer input. If False, expects a float input.
+
+        Returns:
+            tuple: A tuple containing the number entered by the user and a boolean indicating if the input is valid.
+        """
+        def number_callback(prompt_text: str, is_integer: bool):
+            if is_integer:
+                number, ok = QInputDialog.getInt(self.main_window, "Input", prompt_text)
+            else:
+                number, ok = QInputDialog.getDouble(self.main_window, "Input", prompt_text)
+            return (number, ok)
+
+        result, ok = self.request_gui(number_callback, prompt_text=prompt_text, is_integer=is_integer)
+        if ok:
+            return result, True
+        else:
+            return None, False

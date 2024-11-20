@@ -12,6 +12,7 @@ from scipy.ndimage import rotate
 from concurrent.futures import ThreadPoolExecutor
 from scipy.ndimage import binary_fill_holes
 from skimage import feature
+from joblib import Parallel, delayed
 
 def get_lines(image):
 
@@ -507,9 +508,9 @@ def rotate_volume( volume, angle, progress_window=None):
 
     return rotated_volume
 
-def rotate_volume_concurrent( volume, angle, progress_window=None):
+def rotate_volume_concurrent(volume, angle, progress_window=None):
     """
-    This function rotates a 3D volume by a given angle using concurrent processing. 
+    This function rotates a 3D volume by a given angle using concurrent processing with joblib. 
     The rotation is applied to each slice of the volume concurrently. 
     If a progress window is provided, the progress of the rotation is displayed in it.
 
@@ -521,29 +522,26 @@ def rotate_volume_concurrent( volume, angle, progress_window=None):
     Returns:
     numpy.ndarray: The rotated 3D volume.
     """
-    def rotate_slice(args):
-        slice, angle = args
+    def rotate_slice(slice):
         return rotate(slice, angle)
 
     rotated = rotate(volume[0], angle)
     shape = (volume.shape[0],) + rotated.shape
     rotated_volume = np.zeros(shape=shape, dtype=volume.dtype)
 
-    if progress_window == None:
-        with ThreadPoolExecutor() as executor:
-            args = [(volume[i], angle) for i in range(volume.shape[0])]
-            for i, result in enumerate(executor.map(rotate_slice, args)):
-                rotated_volume[i] = result
+    if progress_window is None:
+        rotated_slices = Parallel(n_jobs=-1)(delayed(rotate_slice)(volume[i]) for i in range(volume.shape[0]))
+        for i, result in enumerate(rotated_slices):
+            rotated_volume[i] = result
     else:
-        with ThreadPoolExecutor() as executor:
-            args = [(volume[i], angle) for i in range(volume.shape[0])]
-            for i, result in enumerate(executor.map(rotate_slice, args)):
-                rotated_volume[i] = result
-                progress_window.update_progress(
-                    int(i / volume.shape[0] * 100),
-                    f"Rotating: {i}",
-                    i,
-                    volume.shape[0],
-                )
+        rotated_slices = Parallel(n_jobs=-1)(delayed(rotate_slice)(volume[i]) for i in range(volume.shape[0]))
+        for i, result in enumerate(rotated_slices):
+            rotated_volume[i] = result
+            progress_window.update_progress(
+                int(i / volume.shape[0] * 100),
+                f"Rotating: {i}",
+                i,
+                volume.shape[0],
+            )
 
     return rotated_volume

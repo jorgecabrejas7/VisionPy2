@@ -1,0 +1,8 @@
+PyQt6
+numpy
+tifffile
+matplotlib
+tqdm
+scikit-image
+scipy
+joblib

@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from concurrent.futures import ThreadPoolExecutor
 import scipy.ndimage as ndimage
+from joblib import Parallel, delayed
 
 def get_thresholds(plugin,volume):
     """
@@ -463,7 +464,7 @@ def shift_volume_concurrent(volume,shift, progress_window=None):
     numpy.ndarray: A 3D array where each slice is shifted.
     """
 
-    def shift_slice(args):
+    def shift_slice(slice_data, shift):
         """
         Shifts a slice by a given shift value.
         
@@ -474,24 +475,19 @@ def shift_volume_concurrent(volume,shift, progress_window=None):
         Returns:
         numpy.ndarray: The shifted slice.
         """
-
-        slice_data,shift = args
-
-        shifted_slice = ndimage.shift(slice_data, shift, mode = 'constant', cval = 0)
+        shifted_slice = ndimage.shift(slice_data, shift, mode='constant', cval=0)
         return shifted_slice
 
     shifted_volume = np.zeros_like(volume)
 
-    if progress_window == None:
-        with ThreadPoolExecutor() as executor:
-            args = [(volume[i], shift) for i in range(volume.shape[0])]
-            for i, result in enumerate(executor.map(shift_slice, args)):
-                shifted_volume[i] = result
-    else: 
-        with ThreadPoolExecutor() as executor:
-            args = [(volume[i], shift) for i in range(volume.shape[0])]
-            for i, result in enumerate(executor.map(shift_slice, args)):
-                shifted_volume[i] = result
-                progress_window.update_progress(int(i / volume.shape[0] * 100), f"Shifting: {i}",i,volume.shape[0])
-    
+    if progress_window is None:
+        shifted_slices = Parallel(n_jobs=-1)(delayed(shift_slice)(volume[i], shift) for i in range(volume.shape[0]))
+        for i, result in enumerate(shifted_slices):
+            shifted_volume[i] = result
+    else:
+        shifted_slices = Parallel(n_jobs=-1)(delayed(shift_slice)(volume[i], shift) for i in range(volume.shape[0]))
+        for i, result in enumerate(shifted_slices):
+            shifted_volume[i] = result
+            progress_window.update_progress(int(i / volume.shape[0] * 100), f"Shifting: {i}", i, volume.shape[0])
+
     return np.array(shifted_volume)

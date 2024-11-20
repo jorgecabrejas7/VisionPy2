@@ -499,15 +499,29 @@ def apply_transform_parameters(matrix, ut, xct, original_resolution=0.025): #(X,
 
     transformed_volume = []
 
-    for i in range(xct.shape[2]):
-        transformed_volume.append(scipy.ndimage.affine_transform(xct[:,:,i], matrix[:2,:], output_shape=big_shape))
+    if len(xct.shape) == 3:
 
-    transformed_volume = np.array(transformed_volume)
+        for i in range(xct.shape[2]):
+            transformed_volume.append(scipy.ndimage.affine_transform(xct[:,:,i], matrix[:2,:], output_shape=big_shape))
+            transformed_volume = np.array(transformed_volume)
 
-    transformed_volume = np.swapaxes(transformed_volume, 0, 1)
-    transformed_volume = np.swapaxes(transformed_volume, 1, 2)
+            transformed_volume = np.swapaxes(transformed_volume, 0, 1)
+            transformed_volume = np.swapaxes(transformed_volume, 1, 2)
 
-    return transformed_volume
+            return transformed_volume
+    else:
+
+        for i in range(2):
+
+            transformed_volume.append(scipy.ndimage.affine_transform(xct, matrix[:2,:], output_shape=big_shape))
+
+            transformed_volume = np.array(transformed_volume)
+
+            transformed_volume = np.swapaxes(transformed_volume, 0, 1)
+            transformed_volume = np.swapaxes(transformed_volume, 1, 2)
+
+            return transformed_volume[:,:,0]
+
 
 def apply_transform_parameters_paralel(matrix, ut, xct, original_resolution=0.025):
 
@@ -698,7 +712,10 @@ def main_2(ut,xct):
 
     parameters = scaled_transformation_matrix
 
-    return parameters
+    #apply the original transformation to the xct centers
+    transformed_xct_centers = apply_transform_parameters(transformation_matrix,ut,(xct_centers > 0) * 255, original_resolution=1)
+
+    return parameters,ut_centers,xct_centers, transformed_xct_centers
 
 def apply_registration(ut,xct,parameters): #(X,Y,Z) axes
 
