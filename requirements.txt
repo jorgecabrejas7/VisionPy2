@@ -1,3 +1,6 @@
 matplotlib
 PyQt6
 pyqtdarktheme
+pillow
+numpy
+scikit-image

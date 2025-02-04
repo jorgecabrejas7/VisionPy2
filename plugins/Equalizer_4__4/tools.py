@@ -56,19 +56,19 @@ def create_equalization_settings_dialog(parent: QMainWindow) -> callable:
                 double_validator.setLocale(
                     QLocale(QLocale.Language.English, QLocale.Country.UnitedStates)
                 )
-                self.target_mat_edit = QLineEdit("210")
+                self.target_mat_edit = QLineEdit("140")
                 self.target_mat_edit.setValidator(double_validator)
                 form_layout.addRow("Target material value:", self.target_mat_edit)
 
-                self.target_bkg_edit = QLineEdit("50")
+                self.target_bkg_edit = QLineEdit("60")
                 self.target_bkg_edit.setValidator(double_validator)
                 form_layout.addRow("Target background value:", self.target_bkg_edit)
 
-                self.t_mat_edit = QLineEdit("0.3")
+                self.t_mat_edit = QLineEdit("0.6")
                 self.t_mat_edit.setValidator(double_validator)
                 form_layout.addRow("Threshold material:", self.t_mat_edit)
 
-                self.t_bkg_edit = QLineEdit("0.55")
+                self.t_bkg_edit = QLineEdit("0.6")
                 self.t_bkg_edit.setValidator(double_validator)
                 form_layout.addRow("Threshold background:", self.t_bkg_edit)
 
@@ -76,7 +76,7 @@ def create_equalization_settings_dialog(parent: QMainWindow) -> callable:
                 self.average_error_edit.setValidator(double_validator)
                 form_layout.addRow("Tolerance:", self.average_error_edit)
 
-                self.max_it = QLineEdit("10")
+                self.max_it = QLineEdit("5")
                 self.max_it.setValidator(QIntValidator())
                 form_layout.addRow("Max iterations/slice:", self.max_it)
 
@@ -84,7 +84,7 @@ def create_equalization_settings_dialog(parent: QMainWindow) -> callable:
                 self.start_slice_edit.setValidator(QIntValidator())
                 form_layout.addRow("Start slice:", self.start_slice_edit)
 
-                self.end_slice_edit = QLineEdit("4425")
+                self.end_slice_edit = QLineEdit("89471")
                 self.end_slice_edit.setValidator(QIntValidator())
                 form_layout.addRow("End slice::", self.end_slice_edit)
 

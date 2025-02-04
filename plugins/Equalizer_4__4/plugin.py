@@ -391,7 +391,7 @@ class Plugin(BasePlugin):
             end_slice - start_slice,
         )
 
-        projection = auto_adjust(convert_to_8bit(projection))
+        # projection = auto_adjust(convert_to_8bit(projection))
         roi = self.get_image_bbox(projection)
 
         x1, y1, x2, y2 = roi

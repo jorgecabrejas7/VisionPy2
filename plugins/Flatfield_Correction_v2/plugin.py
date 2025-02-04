@@ -44,6 +44,7 @@ class Plugin(BasePlugin):
             self.volume = read_virtual_sequence(folder)
             self.n_slices = self.volume.shape[0]
             slice_n, bbox = self.get_volume_bbox(self.volume)
+            _, self.cropping_bbox = self.get_volume_bbox(self.volume)
             print(f"{folder = } {slice_n = } {bbox = }")
             flatfield_path = self.select_file(caption="Select Flatfield image")
             ddm_path = self.select_file(caption="Select DDM image")
@@ -93,7 +94,7 @@ class Plugin(BasePlugin):
                 flatfield_copy = np.where(
                     contour_mask == 255, blurred_image, flatfield_copy
                 )
-
+            self.rotate = self.ask_for_confirmation("Want to rotate volume 180 degrees?")
             x1, y1, x2, y2 = bbox
             flat_roi = flatfield_copy[y1:y2, x1:x2].copy()
             vol_roi = np.array(self.volume[slice_n, y1:y2, x1:x2]).copy()
@@ -145,7 +146,7 @@ class Plugin(BasePlugin):
 
             num_processing_threads = 6
             num_saving_threads = 2
-
+            flatfield_copy = flatfield_copy.astype(np.float32) / np.mean(flatfield_copy)
             for _ in range(num_processing_threads):
                 processing_thread = threading.Thread(
                     target=self.processing_worker,
@@ -212,11 +213,11 @@ class Plugin(BasePlugin):
         shifted_slice = np.roll(corrected_slice, -shift_size, axis=0)
 
         # Convert the result to uint16 format with scaling
-        corrected_slice_uint16 = f32_to_uint16(shifted_slice, do_scaling=True)
+        corrected_slice_uint16 = f32_to_uint16(shifted_slice, do_scaling=True, bbox=self.cropping_bbox)
         logging.debug(
             f"Flatfield corrected for slice {index} with shift = 2 x {correction_index} x sin({angle_radians} / 2) = {shift_size} pixels - Angle: {np.degrees(angle_radians)}"
         )
-
+       
         return corrected_slice_uint16
 
     def load_partial_volume(self, folder):
@@ -291,8 +292,12 @@ class Plugin(BasePlugin):
 
     def save_slice(self, index, corrected_slice, name, save_folder):
         try:
+            x1, y1, x2, y2 = self.cropping_bbox
+            _corrected_slice = corrected_slice[y1:y2, x1:x2]
+            if self.rotate:
+                _corrected_slice = np.rot90(_corrected_slice, 2)
             save_path = os.path.join(save_folder, name)
-            tifffile.imwrite(save_path, corrected_slice)
+            tifffile.imwrite(save_path, _corrected_slice)
             logging.debug(f"Slice saved: {save_path}")
         except Exception as e:
             logging.error(f"Failed to save slice {index}: {e}")

@@ -199,6 +199,25 @@ class BasePlugin(QObject):
             return self.request_gui(
                 callback, caption=caption if caption else "Select a folder"
             )
+    
+    def ask_for_confirmation(self, message):
+        """
+        Opens a dialog box to ask for user confirmation (Yes/No).
+
+        Args:
+            message (str): The message to display in the dialog box.
+
+        Returns:
+            bool: True if the user selects Yes, False otherwise.
+        """
+        def callback(message):
+            reply = QMessageBox.question(
+                self.main_window, "Confirmation", message,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No
+            )
+            return reply == QMessageBox.StandardButton.Yes
+
+        return self.request_gui(callback, message=message)
 
     def ask_folder_file_save(self, save):
         """
