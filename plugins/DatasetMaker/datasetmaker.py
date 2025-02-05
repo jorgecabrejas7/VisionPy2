@@ -14,6 +14,13 @@ def divide_into_patches(image, patch_size, step_size):
     patches = view_as_windows(image, (image.shape[0], patch_size, patch_size), step=(image.shape[0], step_size, step_size))
     return patches.reshape(-1, image.shape[0], patch_size, patch_size)
 
+def generate_patches(image, patch_size, step_size):
+    channels, height, width = image.shape
+    for i in range(0, height - patch_size + 1, step_size):
+        for j in range(0, width - patch_size + 1, step_size):
+            patch = image[:, i:i + patch_size, j:j + patch_size]
+            yield patch
+
 def calculate_patch_shape(image_shape, patch_size, step_size):
     # Calculate the number of patches along each dimension
     num_patches_h = ((image_shape[1] - patch_size) // step_size) + 1
@@ -109,8 +116,6 @@ def preprocess(onlypores,mask,ut_rf, xct_resolution = 0.025, ut_resolution = 1):
 def patch(onlypores_cropped, mask_cropped, ut_rf_cropped, ut_patch_size = 3, ut_step_size =1, xct_resolution = 0.025, ut_resolution = 1):
 
     #compute xct patch size
-    ut_patch_size = 3
-    ut_step_size = 1
     xct_patch_size = int(np.round(calculate_pixels(ut_resolution, xct_resolution, ut_patch_size)))
     xct_step_size = int(np.round(calculate_pixels(ut_resolution, xct_resolution, ut_step_size)))
 
@@ -131,10 +136,42 @@ def patch(onlypores_cropped, mask_cropped, ut_rf_cropped, ut_patch_size = 3, ut_
     patches_ut = divide_into_patches(ut_rf_cropped, ut_patch_size, ut_step_size)
 
     patches_onlypores = divide_into_patches(onlypores_cropped, xct_patch_size, xct_step_size)
-    center_size = int(patches_onlypores.shape[2] / ut_patch_size)
-    patches_onlypores = patches_onlypores[:, :, center_size:-center_size, center_size:-center_size]
+    # center_size = int(patches_onlypores.shape[2] / ut_patch_size)
+    # patches_onlypores = patches_onlypores[:, :, center_size:-center_size, center_size:-center_size]
     patches_mask = divide_into_patches(mask_cropped,xct_patch_size, xct_step_size)
-    patches_mask = patches_mask[:, :, center_size:-center_size, center_size:-center_size]
+    # patches_mask = patches_mask[:, :, center_size:-center_size, center_size:-center_size]
+
+    return patches_onlypores, patches_mask, patches_ut
+
+def patch_2(onlypores_cropped, mask_cropped, ut_rf_cropped, ut_patch_size = 3, ut_step_size = 1, beam_size = 3, xct_resolution = 0.025, ut_resolution = 1):
+    # Compute XCT patch size
+    xct_patch_size = int(np.round(calculate_pixels(ut_resolution, xct_resolution, ut_patch_size)))
+    xct_beam_size = int(np.round(calculate_pixels(ut_resolution, xct_resolution, beam_size)))
+    xct_step_size = int(np.round(calculate_pixels(ut_resolution, xct_resolution, ut_step_size)))
+
+    #crop volumes to fit patch size division
+    ut_rf_cropped = crop_image_to_patch_size(ut_rf_cropped, ut_patch_size)
+    onlypores_cropped = crop_image_to_patch_size(onlypores_cropped, xct_patch_size)
+    mask_cropped = crop_image_to_patch_size(mask_cropped, xct_patch_size)
+
+    #pad onlypores and mask to fit beam size division
+    pad = (xct_beam_size - xct_patch_size) // 2
+    onlypores_cropped = np.pad(onlypores_cropped, ((0, 0), (pad, pad), (pad, pad)), mode='constant')
+    mask_cropped = np.pad(mask_cropped, ((0, 0), (pad, pad), (pad, pad)), mode='constant')
+
+    #ensure patches are the same
+    ut_shape = calculate_patch_shape(ut_rf_cropped.shape, ut_patch_size, ut_step_size)
+    xct_shape = calculate_patch_shape(onlypores_cropped.shape, xct_beam_size, xct_step_size)
+
+    if not (ut_shape[0] == xct_shape[0]):
+        print('Patches are not the same')
+        return 0,0,0,0
+    
+    #divide into patches
+    patches_ut = divide_into_patches(ut_rf_cropped, ut_patch_size, ut_step_size)
+
+    patches_onlypores = divide_into_patches(onlypores_cropped, xct_beam_size, xct_step_size)
+    patches_mask = divide_into_patches(mask_cropped,xct_beam_size, xct_step_size)
 
     return patches_onlypores, patches_mask, patches_ut
 
@@ -234,7 +271,7 @@ def clean_pores_3D(patches_onlypores):
 
     z_lengths = properties_df_3D['Z Length'].values
 
-    indexes = np.where(z_lengths < 12 )[0]
+    indexes = np.where(z_lengths < 0 )[0]
 
     cleaned_labeled_patches_onlypores = np.copy(labeled_volume_onlypores)
 
@@ -352,14 +389,14 @@ def main(onlypores,mask,ut_rf,folder, xct_resolution = 0.025, ut_resolution = 1,
     #preprocess the images
     onlypores_cropped, mask_cropped, ut_rf_cropped = preprocess(onlypores,mask,ut_rf, xct_resolution, ut_resolution)
     print('Layer cleaning')
-    onlypores_cropped = layer_cleaning(mask_cropped, onlypores_cropped)
+    # onlypores_cropped = layer_cleaning(mask_cropped, onlypores_cropped)
     print('Patching the images...')
     #patch the images
     patches_onlypores, patches_mask, patches_ut = patch(onlypores_cropped, mask_cropped, ut_rf_cropped, ut_patch_size, ut_step_size, xct_resolution, ut_resolution)
     print('Cleaning the pores...')
-    patches_onlypores = clean_pores_3D(patches_onlypores)
+    # patches_onlypores = clean_pores_3D(patches_onlypores)
     print('Creating the datasets...')
     #create the datasets
     datasets1(patches_onlypores, patches_mask, patches_ut, folder,ut_patch_size)
-    
+
 

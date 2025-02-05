@@ -179,6 +179,42 @@ def find_rectangle_centers(image):
     # The first component is the background, so ignore it
     return centroids[1:]
 
+def find_holes_minimums(image, labeled_image):
+    """
+    Find the center of the minimum value in each labeled region of the image.
+    
+    Args:
+    image (numpy.ndarray): 8-bit input image.
+    labeled_image (numpy.ndarray): Labeled image with regions.
+    
+    Returns:
+    numpy.ndarray: Array of centroids of the minimum values in each region.
+    """
+    regions = regionprops(labeled_image, intensity_image=image)
+    centers = []
+
+    for region in regions:
+        # Get the coordinates of the region
+        coords = region.coords
+        # Get the intensity values of the region
+        intensities = image[coords[:, 0], coords[:, 1]]
+        # Find the minimum intensity value
+        min_value = np.min(intensities)
+        # Get the coordinates of the minimum intensity value
+        min_coords = coords[intensities == min_value]
+        
+        if len(min_coords) > 1:
+            # If there are multiple minimums, find the most centered one
+            center = np.mean(min_coords, axis=0)
+            distances = np.linalg.norm(min_coords - center, axis=1)
+            min_coords = min_coords[np.argmin(distances)]
+        else:
+            min_coords = min_coords[0]
+        
+        centers.append(min_coords[::-1])
+    
+    return np.array(centers)
+
 def paint_points_on_image(points, image):
     # Create a copy of the image to avoid modifying the original
     image_copy = np.copy(image)
@@ -365,6 +401,49 @@ def ut_preprocessing(ut):
         largest_regions_image[labeled == lbl] = lbl
 
     ut_centers  = find_rectangle_centers(largest_regions_image > 0)
+
+    centers_painted_ut = paint_binary_points(largest_regions_image.shape, ut_centers)
+
+    return centers_painted_ut
+
+def ut_preprocessing_2(ut):
+
+    #get the frontwall slice
+    ut_max_proj = np.max(ut[:,:,:], axis=2)
+
+    #otsu threshold
+    thresh = threshold_otsu(ut_max_proj)
+    binary = ut_max_proj > thresh
+
+    mask = binary_fill_holes(binary)
+
+    inverted = np.invert(binary)
+
+    #onlypores to get the holes of the samples
+    circles = np.logical_and(mask, inverted)
+
+    #now we label the onlypores to get only the 3 biggest ones
+
+    #labeling
+    labeled, _= label(circles)
+
+    #regionprops
+    props = regionprops(labeled)
+
+    # Step 1: Sort regions by area in descending order and get their labels
+    sorted_regions = sorted(props, key=lambda x: x.area, reverse=True)
+    largest_regions_labels = [region.label for region in sorted_regions[:3]]
+
+    # Step 2: Create a new image to hold the result
+    largest_regions_image = np.zeros_like(labeled)
+    labeled_image = np.zeros_like(labeled)
+
+    # Step 3: Fill in the three largest regions
+    for lbl in largest_regions_labels:
+        largest_regions_image[labeled == lbl] = ut_max_proj[labeled == lbl]
+        labeled_image[labeled == lbl] = lbl
+
+    ut_centers  = find_holes_minimums(largest_regions_image, labeled_image)
 
     centers_painted_ut = paint_binary_points(largest_regions_image.shape, ut_centers)
 
@@ -672,7 +751,7 @@ def main_2(ut,xct):
 
     print('Preprocessing')
 
-    ut_centers = label_objects(ut_preprocessing(ut))
+    ut_centers = label_objects(ut_preprocessing_2(ut))
 
     xct_centers = label_objects(xct_preprocessing(xct))
 

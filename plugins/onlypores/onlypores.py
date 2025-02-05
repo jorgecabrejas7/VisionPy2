@@ -1,15 +1,8 @@
-import tifffile
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-from pathlib import Path
-from tqdm import tqdm
-import os
 from skimage import measure
 from skimage.measure import regionprops
 from skimage import filters
 import fill_voids
-from time import time
 
 def onlypores(xct):
 
