@@ -20,7 +20,7 @@ from utils.bit_depth import f32_to_uint16
 from utils.image_sequence import read_virtual_sequence
 from utils.image_utils import read_tif
 from utils.register import stackreg_translate
-
+from utils.gui_utils import get_bbox
 
 class Plugin(BasePlugin):
     def __init__(self, main_window, plugin_name, uuid):
@@ -44,7 +44,7 @@ class Plugin(BasePlugin):
             self.volume = read_virtual_sequence(folder)
             self.n_slices = self.volume.shape[0]
             slice_n, bbox = self.get_volume_bbox(self.volume)
-            _, self.cropping_bbox = self.get_volume_bbox(self.volume)
+            # _, self.cropping_bbox = self.get_volume_bbox(self.volume)
             print(f"{folder = } {slice_n = } {bbox = }")
             flatfield_path = self.select_file(caption="Select Flatfield image")
             ddm_path = self.select_file(caption="Select DDM image")
@@ -142,6 +142,10 @@ class Plugin(BasePlugin):
             self.direction = (
                 "upwards" if dy < 0 else "downwards" if dy > 0 else "horizontal"
             )
+            representative_slice = self.volume[0] if self.direction == "downwards" else self.volume[-1]
+            shift_size = math.ceil(2 * self.volume.shape[0] * math.sin(angle_radians / 2))
+            representative_slice = np.roll(representative_slice, -shift_size, axis=0)
+            self.cropping_bbox = self.request_gui(get_bbox, representative_slice)
             iterator = range(self.volume.shape[0])
 
             num_processing_threads = 6
