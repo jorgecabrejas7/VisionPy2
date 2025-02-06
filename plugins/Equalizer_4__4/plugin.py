@@ -1,5 +1,7 @@
 from uuid import UUID
 import numpy as np
+import threading
+import queue
 
 from base_plugin import BasePlugin
 from plugins.Equalizer_4__4.tools import (
@@ -63,7 +65,7 @@ class Plugin(BasePlugin):
     def __init__(self, main_window: MainWindow, plugin_name: str, uuid: UUID):
         super().__init__(main_window, plugin_name, uuid)
         self.last_min, self.last_max, self.last_slice = None, None, None
-
+        self.counter = [0]
     def execute(self):
         try:
             # Prompt the user to select a folder to load the volume from
@@ -75,7 +77,7 @@ class Plugin(BasePlugin):
 
             # Read the volume from the selected folder
             volume = read_virtual_sequence(folder_path)
-
+            self.total_slices = volume.shape[0]
             # Prompt the user to select equalization settings
             self.result = self.request_gui(
                 create_equalization_settings_dialog(self.main_window)
@@ -132,38 +134,64 @@ class Plugin(BasePlugin):
     # They contain the logic for processing the volume and slices
     # They should be implemented by the plugin developer
     def process_volume(self, volume, mat_roi, bkg_roi, save_path, file_settings):
-        # Iterate over each slice in the volume
-        try:
-            for slice_index, _slice in enumerate(volume):
-                # Process the slice and obtain the 8-bit version
+        total_slices = volume.shape[0]
+        processing_queue = queue.Queue()
+        saving_queue = queue.Queue()
+        stop_event = threading.Event()
+        lock = threading.Lock()
+
+        def processing_worker():
+            while not stop_event.is_set():
                 try:
+                    index, _slice = processing_queue.get(timeout=1)
                     slice_8bit = self.process_slice(
                         _slice,
                         mat_roi,
                         bkg_roi,
-                        slice_index,
+                        index,
                         self.result["threshold_mat"],
                         self.result["threshold_bkg"],
                         volume,
                     )
+                    saving_queue.put((index, slice_8bit))
+                    processing_queue.task_done()
+                except queue.Empty:
+                    continue
 
-                    # Check the file settings
+        def saving_worker():
+            while not stop_event.is_set():
+                try:
+                    index, slice_8bit = saving_queue.get(timeout=1)
                     if file_settings == "duplicate":
-                        # Save the 8-bit slice as a TIFF file in the specified folder
-                        tifffile.imwrite(
-                            f"{save_path}/eq_slice_{slice_index}.tif", slice_8bit
-                        )
+                        tifffile.imwrite(f"{save_path}/eq_slice_{index}.tif", slice_8bit)
                     elif file_settings == "apply":
-                        # Update the original volume with the 8-bit slice
-                        volume[slice_index] = slice_8bit
-                except Exception as e:
-                    logger.exception(f"Error processing slice {slice_index}: {e}")
-        except Exception as e:
-            logger.exception(f"Error processing slice {slice_index}: {e}")
-        finally:
-            self.update_progress(
-                100, "Processing complete", volume.shape[0], volume.shape[0]
-            )
+                        volume[index] = slice_8bit
+                    saving_queue.task_done()
+                    with lock:
+                        self.counter[0] += 1
+                    self.update_progress(
+                        int((self.counter[0] + 1) * 100 / total_slices),
+                        f"Processing slice {self.counter[0] + 1} of {self.total_slices}",
+                        index + 1,
+                        total_slices,
+                    )
+                except queue.Empty:
+                    continue
+
+        num_processing = 6
+        num_saving = 2
+        for _ in range(num_processing):
+            threading.Thread(target=processing_worker, daemon=True).start()
+        for _ in range(num_saving):
+            threading.Thread(target=saving_worker, daemon=True).start()
+
+        for index, _slice in enumerate(volume):
+            processing_queue.put((index, _slice))
+
+        processing_queue.join()
+        saving_queue.join()
+        stop_event.set()
+        self.update_progress(100, "Processing complete", total_slices, total_slices)
 
     def process_slice(
         self,
@@ -355,50 +383,81 @@ class Plugin(BasePlugin):
         Returns:
             ndarray: A boolean mask representing the manually selected ROI.
         """
-
-        # Compute the maximum intensity projection along the z-axis
+        # Request a slice range from the user via the GUI.
         res = self.request_gui(create_slice_range_dialog(self.main_window))
         start_slice, end_slice = res["start_slice"], res["end_slice"]
+        total_slices = end_slice - start_slice  # Total slices to process
 
-        # Initialize the projection with the first applicable slice.
-        first_slice = volume[start_slice]
-        if roi_type == "mat":
-            projection = first_slice
-        elif roi_type == "bkg":
-            projection = first_slice
+        import concurrent.futures
+        import threading
+        import numpy as np
 
-        self.update_progress(0, "Calculating Z-Projection", 0, end_slice - start_slice)
-        # Incrementally update the projection.
-        for i in range(start_slice + 1, end_slice):
-            slice_data = volume[i]
-            if roi_type == "mat":
-                projection = np.min(np.stack((projection, slice_data), axis=0), axis=0)
-            elif roi_type == "bkg":
-                projection = np.max(np.stack((projection, slice_data), axis=0), axis=0)
+        # Shared progress counter using a mutable container.
+        progress_counter = [0]  # We'll store the count as the first element of this list.
+        progress_lock = threading.Lock()
 
-            # Update the progress bar.
-            self.update_progress(
-                int((i / (end_slice - start_slice)) * 100),
-                f"Calculating Z-Projection. Slice {i} of {end_slice}",
-                i - start_slice,
-                end_slice - start_slice,
-            )
-        # Update the progress bar to indicate that the Z-Projection is complete.
-        self.update_progress(
-            100,
-            "Z-Projection Complete",
-            end_slice - start_slice,
-            end_slice - start_slice,
-        )
+        num_workers = 4
+        # Split the slice indices among the available threads.
+        indices = np.array_split(range(start_slice, end_slice), num_workers)
 
-        # projection = auto_adjust(convert_to_8bit(projection))
-        roi = self.get_image_bbox(projection)
+        def compute_projection(index_range):
+            if not len(index_range):
+                return None
 
-        x1, y1, x2, y2 = roi
-        roi = np.zeros_like(volume[0])
-        roi[y1:y2, x1:x2] = 1
-        roi = roi.astype(bool)
-        return roi
+            # Process the first slice in the chunk.
+            proj = volume[index_range[0]]
+
+            # Process the remaining slices in this chunk.
+            for i in index_range[1:]:
+                slice_data = volume[i]
+                if roi_type == "mat":
+                    proj = np.minimum(proj, slice_data)
+                elif roi_type == "bkg":
+                    proj = np.maximum(proj, slice_data)
+
+                # Update progress after processing each slice.
+                with progress_lock:
+                    progress_counter[0] += 1
+                    current_count = progress_counter[0]
+                self.update_progress(
+                    (current_count + 1) * 100 / total_slices,
+                    f"Processing slice {current_count}",
+                    current_count,
+                    total_slices,
+                )
+                
+            return proj
+
+        # Launch parallel threads to compute parts of the projection.
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+            futures = [executor.submit(compute_projection, chunk) for chunk in indices]
+            # Collect results as they complete.
+            partial_projs = [
+                future.result() for future in concurrent.futures.as_completed(futures)
+                if future.result() is not None
+            ]
+
+        # Combine the partial projections into a final projection.
+        if partial_projs:
+            projection = partial_projs[0]
+            for part in partial_projs[1:]:
+                if roi_type == "mat":
+                    projection = np.minimum(projection, part)
+                elif roi_type == "bkg":
+                    projection = np.maximum(projection, part)
+        else:
+            projection = volume[start_slice]
+
+        self.update_progress(100, "Z-Projection Complete", total_slices, total_slices)
+
+        # Use the computed projection to determine the ROI bounding box.
+        roi_bbox = self.get_image_bbox(projection)
+        x1, y1, x2, y2 = roi_bbox
+
+        # Create a boolean mask of the ROI.
+        roi_mask = np.zeros_like(volume[0])
+        roi_mask[y1:y2, x1:x2] = 1
+        return roi_mask.astype(bool)
 
     def calculate_peak(self, _slice, roi, threshold):
         # Calculate the histogram of the slice

@@ -142,10 +142,12 @@ class Plugin(BasePlugin):
             self.direction = (
                 "upwards" if dy < 0 else "downwards" if dy > 0 else "horizontal"
             )
-            representative_slice = self.volume[0] if self.direction == "downwards" else self.volume[-1]
+            representative_slice = self.volume[0] if self.direction == "upwards" else self.volume[-1]
             shift_size = math.ceil(2 * self.volume.shape[0] * math.sin(angle_radians / 2))
             representative_slice = np.roll(representative_slice, -shift_size, axis=0)
             self.cropping_bbox = self.request_gui(get_bbox, representative_slice)
+            x1, y1, x2, y2 = self.cropping_bbox
+            _ = self.request_gui(get_bbox, representative_slice[y1:y2, x1:x2])
             iterator = range(self.volume.shape[0])
 
             num_processing_threads = 6

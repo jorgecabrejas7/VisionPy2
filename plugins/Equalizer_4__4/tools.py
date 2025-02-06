@@ -84,7 +84,7 @@ def create_equalization_settings_dialog(parent: QMainWindow) -> callable:
                 self.start_slice_edit.setValidator(QIntValidator())
                 form_layout.addRow("Start slice:", self.start_slice_edit)
 
-                self.end_slice_edit = QLineEdit("89471")
+                self.end_slice_edit = QLineEdit("89470")
                 self.end_slice_edit.setValidator(QIntValidator())
                 form_layout.addRow("End slice::", self.end_slice_edit)
 
