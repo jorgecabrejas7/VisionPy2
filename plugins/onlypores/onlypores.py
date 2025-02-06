@@ -1,31 +1,24 @@
-import tifffile
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-from pathlib import Path
-from tqdm import tqdm
-import os
 from skimage import measure
 from skimage.measure import regionprops
 from skimage import filters
 import fill_voids
-from time import time
+
 
 def onlypores(xct):
-
-    print('masking')
+    print("masking")
 
     # Create a masked array, excluding zeros
     masked_data = np.ma.masked_equal(xct, 0)
 
     unmasked_data = masked_data.compressed()
 
-    print('computing otsu')
+    print("computing otsu")
 
     # Apply Otsu thresholding on the non-zero values
     threshold_value = filters.threshold_otsu(unmasked_data)
 
-    print('thresholding with value: ', threshold_value)
+    print("thresholding with value: ", threshold_value)
 
     binary = xct > threshold_value
 
@@ -37,7 +30,7 @@ def onlypores(xct):
 
     minr, minc, maxr, maxc = props[0].bbox
 
-    #crop the volume
+    # crop the volume
 
     binary_cropped = binary[:, minr:maxr, minc:maxc]
 
@@ -46,11 +39,12 @@ def onlypores(xct):
     sample_mask = np.zeros_like(binary)
     sample_mask[:, minr:maxr, minc:maxc] = sample_mask_cropped
 
-    #invert binary
+    # invert binary
     binary_inverted = np.invert(binary)
     onlypores = np.logical_and(binary_inverted, sample_mask)
 
     return onlypores, sample_mask, binary
+
 
 def onlypores_parallel(xct):
     from joblib import Parallel, delayed
@@ -60,9 +54,9 @@ def onlypores_parallel(xct):
     def mask_and_compress(xct_chunk):
         masked_data = np.ma.masked_equal(xct_chunk, 0)
         return masked_data.compressed()
-    
-    print('masking')
-    
+
+    print("masking")
+
     # Number of chunks (adjust depending on the size of your array and available cores)
     num_chunks = 16  # You can increase or decrease this based on testing
 
@@ -70,17 +64,19 @@ def onlypores_parallel(xct):
     chunks = np.array_split(xct, num_chunks)
 
     # Use joblib to apply the function in parallel
-    compressed_chunks = Parallel(n_jobs=-1, backend='loky')(delayed(mask_and_compress)(chunk) for chunk in chunks)
+    compressed_chunks = Parallel(n_jobs=-1, backend="loky")(
+        delayed(mask_and_compress)(chunk) for chunk in chunks
+    )
 
     # Combine the results back into a single array
     unmasked_data = np.concatenate(compressed_chunks)
 
-    print('computing otsu')
+    print("computing otsu")
 
     # Apply Otsu thresholding on the non-zero values
     threshold_value = filters.threshold_otsu(unmasked_data)
 
-    print('thresholding with value: ', threshold_value)
+    print("thresholding with value: ", threshold_value)
 
     binary = xct > threshold_value
 
@@ -92,7 +88,7 @@ def onlypores_parallel(xct):
 
     minr, minc, maxr, maxc = props[0].bbox
 
-    #crop the volume
+    # crop the volume
 
     binary_cropped = binary[:, minr:maxr, minc:maxc]
 
@@ -101,7 +97,7 @@ def onlypores_parallel(xct):
     sample_mask = np.zeros_like(binary)
     sample_mask[:, minr:maxr, minc:maxc] = sample_mask_cropped
 
-    #invert binary
+    # invert binary
     binary_inverted = np.invert(binary)
     onlypores = np.logical_and(binary_inverted, sample_mask)
 

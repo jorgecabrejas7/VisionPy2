@@ -46,7 +46,9 @@ class Plugin(BasePlugin):
             reslices = self.request_gui(alg.get_user_inputs3)
 
             # Select thresholds
-            angles = self.request_gui(alg.get_angles, plugin = self, volume=volume, reslices=reslices)
+            angles = self.request_gui(
+                alg.get_angles, plugin=self, volume=volume, reslices=reslices
+            )
 
             logging.info("-----------------------")
 
@@ -93,7 +95,7 @@ class Plugin(BasePlugin):
                     volume = np.transpose(volume, (2, 0, 1))
 
                 #######CENTERING######
-                
+
                 # Select thresholds
                 user_inputs = self.request_gui(cnt.get_thresholds, self, volume)
 
@@ -103,20 +105,24 @@ class Plugin(BasePlugin):
                     # Create a progress window
 
                     self.update_progress(0, "Centering Volume")
-                    #get shift
-                    shift = user_inputs['Main']
-                    #shift volume
-                    volume = cnt.shift_volume_concurrent(volume,shift,progress_window=self)
-                    
-                    #select dimensions for cropping
-                    user_inputs2 = self.request_gui(cnt.get_dimensions,self, volume)
+                    # get shift
+                    shift = user_inputs["Main"]
+                    # shift volume
+                    volume = cnt.shift_volume_concurrent(
+                        volume, shift, progress_window=self
+                    )
+
+                    # select dimensions for cropping
+                    user_inputs2 = self.request_gui(cnt.get_dimensions, self, volume)
 
                     if user_inputs2:
                         # cropping
 
-                        #cropping
+                        # cropping
 
-                        volume = cnt.crop_volume(volume,user_inputs2['Main'][0],user_inputs2['Main'][1])
+                        volume = cnt.crop_volume(
+                            volume, user_inputs2["Main"][0], user_inputs2["Main"][1]
+                        )
 
                 # Check if a folder was selected
                 if save_path:
@@ -147,5 +153,3 @@ class Plugin(BasePlugin):
             self.prompt_message("No file is selected.")
 
         return
-
-    

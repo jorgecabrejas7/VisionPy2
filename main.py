@@ -11,13 +11,14 @@ import qdarktheme
 
 matplotlib.use("QtAgg")
 
+
 def main():
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(threadName)s - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
-    
+
     app = QApplication(sys.argv)
     qdarktheme.setup_theme()
     main_view = MainWindow()

@@ -76,12 +76,12 @@ def virtual_sequence_bbox(zarr_array: zarr.Array):
         image_uint8 = normalized.astype(np.uint8)
 
         # Convert to PIL Image
-        
+
         pil_image = Image.fromarray(image_uint8)
 
         # Retrieve brightness and contrast settings for the current slice
         brightness_val = brightness_settings.get(current_slice, 0.0)  # Percentage
-        contrast_val = contrast_settings.get(current_slice, 1.0)      # Factor
+        contrast_val = contrast_settings.get(current_slice, 1.0)  # Factor
 
         # Map brightness_val from -100 to +100 to 0.0 to 2.0
         brightness_factor = 1.0 + (brightness_val / 100.0)
@@ -189,7 +189,7 @@ def virtual_sequence_bbox(zarr_array: zarr.Array):
         ax_brightness,
         "Brightness (%)",
         -100.0,
-        100.0,   # Represents -100% to +100% shift
+        100.0,  # Represents -100% to +100% shift
         valinit=brightness_settings.get(current_slice, 0.0),
         valfmt="%1.0f%%",
     )
@@ -201,7 +201,7 @@ def virtual_sequence_bbox(zarr_array: zarr.Array):
         ax_contrast,
         "Contrast",
         0.1,
-        3.0,     # Adjust based on data range
+        3.0,  # Adjust based on data range
         valinit=contrast_settings.get(current_slice, 1.0),
         valfmt="%1.2f",
     )
@@ -211,7 +211,6 @@ def virtual_sequence_bbox(zarr_array: zarr.Array):
     fig.canvas.mpl_connect("key_press_event", key_press)
 
     return capture_bbox_and_return()
-
 
 
 def virtual_sequence_slice(zarr_array: zarr.Array) -> int:
@@ -311,7 +310,12 @@ def get_bbox(zarr_array) -> Tuple[List[int]]:
     def onselect(eclick, erelease):
         """Callback for the rectangle selector to update the bounding box."""
         global bbox
-        bbox = [int(eclick.xdata), int(eclick.ydata), int(erelease.xdata), int(erelease.ydata)]
+        bbox = [
+            int(eclick.xdata),
+            int(eclick.ydata),
+            int(erelease.xdata),
+            int(erelease.ydata),
+        ]
         update_dialog()
 
     def update_dialog():
@@ -328,7 +332,9 @@ def get_bbox(zarr_array) -> Tuple[List[int]]:
         dlg.setWindowTitle("Bounding Box Values")
 
         layout = QVBoxLayout()
-        bbox_label = QLabel("Bounding Box: {}".format(bbox) if bbox else "No Bounding Box Selected")
+        bbox_label = QLabel(
+            "Bounding Box: {}".format(bbox) if bbox else "No Bounding Box Selected"
+        )
         update_dialog()
         layout.addWidget(bbox_label)
 
@@ -364,15 +370,15 @@ def get_bbox(zarr_array) -> Tuple[List[int]]:
         minspanx=5,
         minspany=5,
         spancoords="pixels",
-        interactive=True
+        interactive=True,
     )
 
     # Add sliders for brightness and contrast
     ax_brightness = fig.add_axes([0.25, 0.1, 0.50, 0.03])
     ax_contrast = fig.add_axes([0.25, 0.05, 0.50, 0.03])
 
-    brightness_slider = Slider(ax_brightness, 'Brightness', -1.0, 1.0, valinit=0.0)
-    contrast_slider = Slider(ax_contrast, 'Contrast', 0.1, 3.0, valinit=1.0)
+    brightness_slider = Slider(ax_brightness, "Brightness", -1.0, 1.0, valinit=0.0)
+    contrast_slider = Slider(ax_contrast, "Contrast", 0.1, 3.0, valinit=1.0)
 
     def update_image(val):
         # Get current slider values

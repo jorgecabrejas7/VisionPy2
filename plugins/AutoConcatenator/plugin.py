@@ -71,26 +71,29 @@ class Plugin(BasePlugin):
                     return volume2[::-1]
                 else:
                     return volume2
-            
-            def registered_ask():
 
-                #creat a window that asks the user if the volumes are registered
+            def registered_ask():
+                # creat a window that asks the user if the volumes are registered
                 msg_box = QMessageBox(self.main_window)
                 msg_box.setText("Are the volumes registered?")
-                msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                msg_box.setStandardButtons(
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                )
                 msg_box.setDefaultButton(QMessageBox.StandardButton.Yes)
                 ret = msg_box.exec()
-                #if selected yes, return False
+                # if selected yes, return False
                 if ret == QMessageBox.StandardButton.Yes:
                     return False
                 else:
                     return True
-            
+
             self.request_gui(flip_ask, volume2)
 
             register = self.request_gui(registered_ask)
 
-            length, resolution, start, end, search_range = self.request_gui(self.get_info, volume1.shape[0],volume2.shape[0],show=False)
+            length, resolution, start, end, search_range = self.request_gui(
+                self.get_info, volume1.shape[0], volume2.shape[0], show=False
+            )
 
             print(
                 f"length: {length}, resolution: {resolution}, start: {start}, end: {end}"
@@ -98,11 +101,20 @@ class Plugin(BasePlugin):
 
             rois = [self.request_gui(self.get_roi, volume1)]
 
-            distancias_concurrente = self.compare_slices_concurrent_ai(volume1,volume2,length,resolution,start =start, end =end, rois=rois, n_chunks = 1, range_slices=search_range)
+            distancias_concurrente = self.compare_slices_concurrent_ai(
+                volume1,
+                volume2,
+                length,
+                resolution,
+                start=start,
+                end=end,
+                rois=rois,
+                n_chunks=1,
+                range_slices=search_range,
+            )
 
-
-            #get the minimum distance of distancias_concurrente
-            min_distance = np.argmin(distancias_concurrente[:,2])
+            # get the minimum distance of distancias_concurrente
+            min_distance = np.argmin(distancias_concurrente[:, 2])
             i = int(distancias_concurrente[min_distance][0])
             j = int(distancias_concurrente[min_distance][1])
             distance = distancias_concurrente[min_distance][2]
@@ -112,15 +124,13 @@ class Plugin(BasePlugin):
             self.prompt_message(f"i: {i}, j: {j}, distance: {distance}")
 
             if len([1]) > 0:
-
                 if register:
-
                     # Create a progress window
                     middle = volume1[i]
 
-                    volume2 = self.stackreg(volume2[j:],middle,progress_window=self)
+                    volume2 = self.stackreg(volume2[j:], middle, progress_window=self)
 
-                    self.update_progress(100, "Registering Volume",1,1)
+                    self.update_progress(100, "Registering Volume", 1, 1)
 
                 concatenated = self.concatenate_volumes(volume1, volume2, i, 0)
 
@@ -568,7 +578,7 @@ class Plugin(BasePlugin):
                 i = distance[0]
                 self.update_progress(
                     int((i - start) / (end - start) * 100),
-                    f"Comparing: {i-start}",
+                    f"Comparing: {i - start}",
                     i - start,
                     end - start,
                 )
@@ -733,7 +743,7 @@ class Plugin(BasePlugin):
                         i = distance[0]
                         progress_window.update_progress(
                             int((i - start) / (end - start) * 100),
-                            f"Comparing: {i-start}",
+                            f"Comparing: {i - start}",
                             i - start,
                             end - start,
                         )

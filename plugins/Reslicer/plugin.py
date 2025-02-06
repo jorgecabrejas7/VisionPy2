@@ -2,12 +2,13 @@
 from base_plugin import BasePlugin
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
-import numpy as np
 import matplotlib.pyplot as plt
 import tifffile as tiff
 from utils import image_sequence
 import os
 import plugins.Reslicer.reslicer as rsl
+
+
 # Define a class that implements the PluginInterface
 class Plugin(BasePlugin):
     # Prompt the user to select a file
@@ -39,14 +40,13 @@ class Plugin(BasePlugin):
 
         # Check if a file was selected
         if file_path and save_path:
+            # ask for reslice direction
+            reslice_direction = self.request_gui(rsl.ask_reslice, self)
 
-            #ask for reslice direction
-            reslice_direction = self.request_gui(rsl.ask_reslice,self)
-
-            #reslice the volume
+            # reslice the volume
             resliced = rsl.reslice(volume, reslice_direction)
 
-            resliced = self.request_gui(rsl.ask_rotate,self,resliced)
+            resliced = self.request_gui(rsl.ask_rotate, self, resliced)
 
             print(resliced.shape)
 
@@ -68,5 +68,3 @@ class Plugin(BasePlugin):
         else:
             # Show a message box if no file is selected
             self.prompt_error("No file selected.")
-
- 

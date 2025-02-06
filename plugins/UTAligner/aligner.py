@@ -1,4 +1,3 @@
-
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 import numpy as np
@@ -10,6 +9,7 @@ from scipy.ndimage import binary_fill_holes
 from skimage import feature
 from scipy.ndimage import rotate
 import scipy
+
 
 def get_angle(volume, gate):
     """
@@ -42,9 +42,9 @@ def get_angle(volume, gate):
 
     middle_slice = volume[sliceid]
 
-    #otsu threshold
+    # otsu threshold
     threshold_value = threshold_otsu(middle_slice)
-    print('threshold value is: ', threshold_value)
+    print("threshold value is: ", threshold_value)
     thresholded_slice = middle_slice > threshold_value
 
     # Label the objects in the thresholded slice
@@ -64,7 +64,7 @@ def get_angle(volume, gate):
     # Apply the mask to the thresholded slice
     thresholded_slice = thresholded_slice * mask
 
-    #fill holes in the mask
+    # fill holes in the mask
     mask = binary_fill_holes(mask).astype(int)
 
     # extract edges using canny edge detector
@@ -102,7 +102,8 @@ def get_angle(volume, gate):
 
     return -rotation_angle_degrees
 
-def get_lines2( image):
+
+def get_lines2(image):
     # get the first and last pixel of the image
     linea = np.where(image >= 1)
     x0 = linea[0][0]
@@ -120,7 +121,8 @@ def get_lines2( image):
 
     return image2
 
-def rotate_volume_deprecated( volume, angle, progress_window=None):
+
+def rotate_volume_deprecated(volume, angle, progress_window=None):
     """
     Rotate a 3D volume by a given angle.
 
@@ -151,26 +153,27 @@ def rotate_volume_deprecated( volume, angle, progress_window=None):
 
     return rotated_volume
 
-def rotate_volume(volume, angle, progress_window=None):
 
+def rotate_volume(volume, angle, progress_window=None):
     volume = np.swapaxes(volume, 0, 1)
     volume = np.swapaxes(volume, 1, 2)
 
     theta = np.radians(angle)
     cos_theta, sin_theta = np.cos(theta), np.sin(theta)
-    rotation_matrix = np.array([
-        [cos_theta, -sin_theta, 0],
-        [sin_theta, cos_theta, 0],
-        [0, 0, 1]
-    ])
+    rotation_matrix = np.array(
+        [[cos_theta, -sin_theta, 0], [sin_theta, cos_theta, 0], [0, 0, 1]]
+    )
 
     # Apply the affine transform
-    rotated_volume = scipy.ndimage.affine_transform(volume, rotation_matrix, order = 1, mode = 'constant', cval = 128)
+    rotated_volume = scipy.ndimage.affine_transform(
+        volume, rotation_matrix, order=1, mode="constant", cval=128
+    )
 
     rotated_volume = np.swapaxes(rotated_volume, 1, 2)
     rotated_volume = np.swapaxes(rotated_volume, 0, 1)
 
     return rotated_volume
+
 
 def ask_gate(plugin):
     # create a window
@@ -184,6 +187,7 @@ def ask_gate(plugin):
     if ok:
         return (start, end)
 
+
 def plot_signal_gate(signal, gate):
     # clean the plot
     plt.close("all")
@@ -192,6 +196,7 @@ def plot_signal_gate(signal, gate):
     plt.axvline(x=gate[1], color="r", linestyle="--")
     plt.show()
 
+
 def get_gate(plugin, data):
     max_signal = np.max(data, axis=(1, 2))
 
@@ -199,7 +204,7 @@ def get_gate(plugin, data):
 
     while True:
         while True:
-            gate = plugin.request_gui(ask_gate,plugin)
+            gate = plugin.request_gui(ask_gate, plugin)
 
             # gate end must be greater than gate start and start must be greater than 0
             if (gate[0] < gate[1]) and (gate[0] > 0):
@@ -215,6 +220,7 @@ def get_gate(plugin, data):
         if response:
             return gate
 
+
 def align(data, gate):
     # now do it for the whole volume
     rolled_data = np.zeros_like(data)
@@ -227,11 +233,11 @@ def align(data, gate):
             rolled_data[:, i, j] = rolled
     return rolled_data
 
+
 def autogate(volume):
+    brightest_slice = np.argmax(np.sum(volume, axis=(1, 2)))
 
-    brightest_slice = np.argmax(np.sum(volume, axis=(1,2)))
-
-    return [brightest_slice-2, brightest_slice+2]
+    return [brightest_slice - 2, brightest_slice + 2]
 
 
 def ask_auto(plugin):

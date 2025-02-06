@@ -1,12 +1,9 @@
-
 from base_plugin import BasePlugin
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
-import numpy as np
-import tifffile as tiff
 from utils import image_sequence
-import os
 from plugins.SampleExtractor.sampleextractor import process_volume
+
 
 class Plugin(BasePlugin):
     def run(self):
@@ -40,7 +37,9 @@ class Plugin(BasePlugin):
         # Save the extracted samples
         for i, sample in enumerate(samples):
             sample_save_path = save_paths[i]
-            image_sequence.write_sequence2(sample_save_path,'volume_eq', sample, progress_window=self)
+            image_sequence.write_sequence2(
+                sample_save_path, "volume_eq", sample, progress_window=self
+            )
 
         self.update_progress(100, "Samples saved successfully.")
         self.prompt_message("Samples saved successfully.")

@@ -1,7 +1,3 @@
-from typing import Any, Dict, Tuple
-
-import matplotlib.pyplot as plt
-import numpy as np
 import tifffile
 from base_plugin import BasePlugin
 from plugins.Volume_Reconstruction.tools import get_dialog, get_bscans

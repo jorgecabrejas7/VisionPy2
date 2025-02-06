@@ -1,7 +1,11 @@
 import numpy as np
 
 
-def f32_to_uint16(float_image: np.ndarray, do_scaling: bool = True, bbox: tuple[int, int, int , int] = None) -> np.ndarray:
+def f32_to_uint16(
+    float_image: np.ndarray,
+    do_scaling: bool = True,
+    bbox: tuple[int, int, int, int] = None,
+) -> np.ndarray:
     """
     Converts a floating-point image to a short (16-bit) image.
 
@@ -21,7 +25,7 @@ def f32_to_uint16(float_image: np.ndarray, do_scaling: bool = True, bbox: tuple[
         array([[   0, 21845],
                [43690, 65535]], dtype=uint16)
     """
-        
+
     min_val: float = float_image.min()
     max_val: float = float_image.max()
     scale: float = 65535.0 / (max_val - min_val) if max_val != min_val else 1.0
@@ -69,10 +73,10 @@ def convert_to_8bit(image, use_scaling=False, min_val=None, max_val=None):
         # Directly convert from 16-bit to 8-bit
         return (image / 65535.0 * 255).astype(np.uint8)
 
+
 def imagej_8B(image: np.ndarray):
-    
     min_val, max_val = image.min(), image.max()
-    bins = np.linspace(min_val, max_val, 256) # 256 bins +1 to cover end point
+    bins = np.linspace(min_val, max_val, 256)  # 256 bins +1 to cover end point
 
     # Use digitize to find out indices of the bins each pixel belongs to
     indices = np.digitize(image, bins) - 1  # Subtract 1 to make indices 0-based

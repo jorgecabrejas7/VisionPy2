@@ -45,7 +45,9 @@ class Plugin(BasePlugin):
             reslices = self.request_gui(alg.get_user_inputs3)
 
             # Select thresholds
-            angles = self.request_gui(alg.get_angles, plugin = self, volume=volume, reslices=reslices)
+            angles = self.request_gui(
+                alg.get_angles, plugin=self, volume=volume, reslices=reslices
+            )
 
             logging.info("-----------------------")
 
@@ -120,5 +122,3 @@ class Plugin(BasePlugin):
             self.prompt_message("No file is selected.")
 
         return
-
-    

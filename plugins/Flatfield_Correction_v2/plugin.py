@@ -22,6 +22,7 @@ from utils.image_utils import read_tif
 from utils.register import stackreg_translate
 from utils.gui_utils import get_bbox
 
+
 class Plugin(BasePlugin):
     def __init__(self, main_window, plugin_name, uuid):
         super().__init__(main_window, plugin_name, uuid)
@@ -94,7 +95,9 @@ class Plugin(BasePlugin):
                 flatfield_copy = np.where(
                     contour_mask == 255, blurred_image, flatfield_copy
                 )
-            self.rotate = self.ask_for_confirmation("Want to rotate volume 180 degrees?")
+            self.rotate = self.ask_for_confirmation(
+                "Want to rotate volume 180 degrees?"
+            )
             x1, y1, x2, y2 = bbox
             flat_roi = flatfield_copy[y1:y2, x1:x2].copy()
             vol_roi = np.array(self.volume[slice_n, y1:y2, x1:x2]).copy()
@@ -142,8 +145,12 @@ class Plugin(BasePlugin):
             self.direction = (
                 "upwards" if dy < 0 else "downwards" if dy > 0 else "horizontal"
             )
-            representative_slice = self.volume[0] if self.direction == "upwards" else self.volume[-1]
-            shift_size = math.ceil(2 * self.volume.shape[0] * math.sin(angle_radians / 2))
+            representative_slice = (
+                self.volume[0] if self.direction == "upwards" else self.volume[-1]
+            )
+            shift_size = math.ceil(
+                2 * self.volume.shape[0] * math.sin(angle_radians / 2)
+            )
             representative_slice = np.roll(representative_slice, -shift_size, axis=0)
             self.cropping_bbox = self.request_gui(get_bbox, representative_slice)
             x1, y1, x2, y2 = self.cropping_bbox
@@ -219,11 +226,13 @@ class Plugin(BasePlugin):
         shifted_slice = np.roll(corrected_slice, -shift_size, axis=0)
 
         # Convert the result to uint16 format with scaling
-        corrected_slice_uint16 = f32_to_uint16(shifted_slice, do_scaling=True, bbox=self.cropping_bbox)
+        corrected_slice_uint16 = f32_to_uint16(
+            shifted_slice, do_scaling=True, bbox=self.cropping_bbox
+        )
         logging.debug(
             f"Flatfield corrected for slice {index} with shift = 2 x {correction_index} x sin({angle_radians} / 2) = {shift_size} pixels - Angle: {np.degrees(angle_radians)}"
         )
-       
+
         return corrected_slice_uint16
 
     def load_partial_volume(self, folder):

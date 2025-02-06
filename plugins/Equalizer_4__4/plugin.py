@@ -11,18 +11,12 @@ from plugins.Equalizer_4__4.tools import (
     calculate_min,
     calculate_max,
 )
-import traceback
 from utils.image_sequence import read_virtual_sequence
 from utils.bit_depth import convert_to_8bit
-from utils.contrast_and_brightness import auto_adjust, equalize
+from utils.contrast_and_brightness import equalize
 import tifffile
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-import time
-from PyQt6.QtWidgets import QMessageBox, QDialog, QLineEdit
 import logging
 import os
-from skimage.exposure import match_histograms
 
 
 from views.main_window import MainWindow
@@ -66,6 +60,7 @@ class Plugin(BasePlugin):
         super().__init__(main_window, plugin_name, uuid)
         self.last_min, self.last_max, self.last_slice = None, None, None
         self.counter = [0]
+
     def execute(self):
         try:
             # Prompt the user to select a folder to load the volume from
@@ -163,7 +158,9 @@ class Plugin(BasePlugin):
                 try:
                     index, slice_8bit = saving_queue.get(timeout=1)
                     if file_settings == "duplicate":
-                        tifffile.imwrite(f"{save_path}/eq_slice_{index}.tif", slice_8bit)
+                        tifffile.imwrite(
+                            f"{save_path}/eq_slice_{index}.tif", slice_8bit
+                        )
                     elif file_settings == "apply":
                         volume[index] = slice_8bit
                     saving_queue.task_done()
@@ -393,7 +390,9 @@ class Plugin(BasePlugin):
         import numpy as np
 
         # Shared progress counter using a mutable container.
-        progress_counter = [0]  # We'll store the count as the first element of this list.
+        progress_counter = [
+            0
+        ]  # We'll store the count as the first element of this list.
         progress_lock = threading.Lock()
 
         num_workers = 4
@@ -425,7 +424,7 @@ class Plugin(BasePlugin):
                     current_count,
                     total_slices,
                 )
-                
+
             return proj
 
         # Launch parallel threads to compute parts of the projection.
@@ -433,7 +432,8 @@ class Plugin(BasePlugin):
             futures = [executor.submit(compute_projection, chunk) for chunk in indices]
             # Collect results as they complete.
             partial_projs = [
-                future.result() for future in concurrent.futures.as_completed(futures)
+                future.result()
+                for future in concurrent.futures.as_completed(futures)
                 if future.result() is not None
             ]
 

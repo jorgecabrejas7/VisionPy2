@@ -2,6 +2,7 @@ import json
 import sys
 from pathlib import Path
 
+
 def extract_code_from_notebook(notebook_path, output_py_path):
     """
     Extracts Python code from a Jupyter Notebook and writes it to a .py file.
@@ -12,21 +13,21 @@ def extract_code_from_notebook(notebook_path, output_py_path):
     """
     try:
         # Read the notebook file
-        with open(notebook_path, 'r', encoding='utf-8') as nb_file:
+        with open(notebook_path, "r", encoding="utf-8") as nb_file:
             notebook_data = json.load(nb_file)
 
         # Extract code cells
         code_cells = [
-            cell['source']
-            for cell in notebook_data.get('cells', [])
-            if cell['cell_type'] == 'code'
+            cell["source"]
+            for cell in notebook_data.get("cells", [])
+            if cell["cell_type"] == "code"
         ]
 
         # Flatten the list of source lines and concatenate them
-        code = '\n\n'.join([''.join(cell) for cell in code_cells])
+        code = "\n\n".join(["".join(cell) for cell in code_cells])
 
         # Write the extracted code to the .py file
-        with open(output_py_path, 'w', encoding='utf-8') as py_file:
+        with open(output_py_path, "w", encoding="utf-8") as py_file:
             py_file.write("# Extracted Python code from notebook\n")
             py_file.write(code)
 
@@ -34,6 +35,7 @@ def extract_code_from_notebook(notebook_path, output_py_path):
 
     except Exception as e:
         print(f"Error occurred: {e}")
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:

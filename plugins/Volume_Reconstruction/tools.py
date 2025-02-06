@@ -3,7 +3,6 @@ from typing import Any, Dict, Tuple
 
 import numpy as np
 from PyQt6.QtWidgets import (
-    QApplication,
     QDialog,
     QVBoxLayout,
     QCheckBox,

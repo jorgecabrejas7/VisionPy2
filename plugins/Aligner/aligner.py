@@ -3,19 +3,16 @@ import cv2
 import matplotlib.pyplot as plt
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
-import numpy as np
-import matplotlib.pyplot as plt
 from skimage.filters import threshold_otsu
 from skimage.measure import label
 from skimage.measure import regionprops
 from scipy.ndimage import rotate
-from concurrent.futures import ThreadPoolExecutor
 from scipy.ndimage import binary_fill_holes
 from skimage import feature
 from joblib import Parallel, delayed
 
-def get_lines(image):
 
+def get_lines(image):
     # convert image type to uint8
     image = image.astype(np.uint8)
 
@@ -40,10 +37,11 @@ def get_lines(image):
     plt.imshow(image)
     plt.show()
 
+
 def get_lines2(image):
     """
     This function takes an image as input and draws a line from the first pixel to the last pixel of the image.
-    
+
     Parameters:
     image (numpy.ndarray): The input image.
 
@@ -68,6 +66,7 @@ def get_lines2(image):
     cv2.line(image2, (y0, x0), (y1, x1), (1, 1, 1), 2)
 
     return image2
+
 
 def get_user_inputs3():
     """
@@ -103,10 +102,11 @@ def get_user_inputs3():
 
     return {"Main": main, "Left": left, "Top": top}
 
+
 def get_angles(plugin, volume, reslices):
     """
-    This function calculates the rotation angles for different slices of a 3D volume based on user-defined thresholds. 
-    It uses Otsu's method to threshold the middle slice of the volume and identifies the largest connected component. 
+    This function calculates the rotation angles for different slices of a 3D volume based on user-defined thresholds.
+    It uses Otsu's method to threshold the middle slice of the volume and identifies the largest connected component.
     The orientation of this component is then used to calculate the rotation angle.
 
     Parameters:
@@ -171,13 +171,9 @@ def get_angles(plugin, volume, reslices):
                 middle_slice[top_index] = 0
 
                 if is8bit:
-                    threshold_value = threshold_otsu(
-                        middle_slice[middle_slice > 10]
-                    )
+                    threshold_value = threshold_otsu(middle_slice[middle_slice > 10])
                 else:
-                    threshold_value = threshold_otsu(
-                        middle_slice[middle_slice > 10000]
-                    )
+                    threshold_value = threshold_otsu(middle_slice[middle_slice > 10000])
 
                 print("threshold value is: ", threshold_value)
 
@@ -302,10 +298,13 @@ def get_angles(plugin, volume, reslices):
 
     return angles
 
-def get_angles_auto(plugin, volume, reslices): #get the angles without asking threshold
+
+def get_angles_auto(
+    plugin, volume, reslices
+):  # get the angles without asking threshold
     """
-    This function calculates the rotation angles for different slices of a 3D volume based on user-defined thresholds. 
-    It uses Otsu's method to threshold the middle slice of the volume and identifies the largest connected component. 
+    This function calculates the rotation angles for different slices of a 3D volume based on user-defined thresholds.
+    It uses Otsu's method to threshold the middle slice of the volume and identifies the largest connected component.
     The orientation of this component is then used to calculate the rotation angle.
 
     Parameters:
@@ -347,7 +346,7 @@ def get_angles_auto(plugin, volume, reslices): #get the angles without asking th
                 volume = np.transpose(volume, (2, 0, 1))
 
         top_threshold = 255
-        
+
         # Check if the threshold is valid by aplying it to the middle slice
         if top_threshold != None:
             if name == "Top":
@@ -369,13 +368,9 @@ def get_angles_auto(plugin, volume, reslices): #get the angles without asking th
             middle_slice[top_index] = 0
 
             if is8bit:
-                threshold_value = threshold_otsu(
-                    middle_slice[middle_slice > 10]
-                )
+                threshold_value = threshold_otsu(middle_slice[middle_slice > 10])
             else:
-                threshold_value = threshold_otsu(
-                    middle_slice[middle_slice > 10000]
-                )
+                threshold_value = threshold_otsu(middle_slice[middle_slice > 10000])
 
             print("threshold value is: ", threshold_value)
 
@@ -447,9 +442,10 @@ def get_angles_auto(plugin, volume, reslices): #get the angles without asking th
 
     return angles
 
+
 def get_user_inputs(plugin, name, default_value=65535):
     """
-    This function creates a dialog window that prompts the user to enter a threshold value for a given reslice name. 
+    This function creates a dialog window that prompts the user to enter a threshold value for a given reslice name.
     The dialog window is created in the main window of the plugin.
 
     Parameters:
@@ -473,9 +469,10 @@ def get_user_inputs(plugin, name, default_value=65535):
     else:
         return None
 
-def rotate_volume( volume, angle, progress_window=None):
+
+def rotate_volume(volume, angle, progress_window=None):
     """
-    This function rotates a 3D volume by a given angle. The rotation is applied to each slice of the volume. 
+    This function rotates a 3D volume by a given angle. The rotation is applied to each slice of the volume.
     If a progress window is provided, the progress of the rotation is displayed in it.
 
     Parameters:
@@ -508,10 +505,11 @@ def rotate_volume( volume, angle, progress_window=None):
 
     return rotated_volume
 
+
 def rotate_volume_concurrent(volume, angle, progress_window=None):
     """
-    This function rotates a 3D volume by a given angle using concurrent processing with joblib. 
-    The rotation is applied to each slice of the volume concurrently. 
+    This function rotates a 3D volume by a given angle using concurrent processing with joblib.
+    The rotation is applied to each slice of the volume concurrently.
     If a progress window is provided, the progress of the rotation is displayed in it.
 
     Parameters:
@@ -522,6 +520,7 @@ def rotate_volume_concurrent(volume, angle, progress_window=None):
     Returns:
     numpy.ndarray: The rotated 3D volume.
     """
+
     def rotate_slice(slice):
         return rotate(slice, angle)
 
@@ -530,11 +529,15 @@ def rotate_volume_concurrent(volume, angle, progress_window=None):
     rotated_volume = np.zeros(shape=shape, dtype=volume.dtype)
 
     if progress_window is None:
-        rotated_slices = Parallel(n_jobs=-1)(delayed(rotate_slice)(volume[i]) for i in range(volume.shape[0]))
+        rotated_slices = Parallel(n_jobs=-1)(
+            delayed(rotate_slice)(volume[i]) for i in range(volume.shape[0])
+        )
         for i, result in enumerate(rotated_slices):
             rotated_volume[i] = result
     else:
-        rotated_slices = Parallel(n_jobs=-1)(delayed(rotate_slice)(volume[i]) for i in range(volume.shape[0]))
+        rotated_slices = Parallel(n_jobs=-1)(
+            delayed(rotate_slice)(volume[i]) for i in range(volume.shape[0])
+        )
         for i, result in enumerate(rotated_slices):
             rotated_volume[i] = result
             progress_window.update_progress(

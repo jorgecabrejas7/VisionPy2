@@ -1,10 +1,10 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from tqdm import tqdm
 from skimage.filters import threshold_otsu
 from scipy.ndimage import binary_fill_holes
 from joblib import Parallel, delayed
 from skimage.measure import label, regionprops
+
 
 def process_volume(volume, n_samples):
     """
@@ -28,7 +28,9 @@ def process_volume(volume, n_samples):
         return binary_fill_holes(binary[i])
 
     # Parallel processing
-    filled_slices = Parallel(n_jobs=-1)(delayed(process_slice)(i) for i in tqdm(range(binary.shape[0])))
+    filled_slices = Parallel(n_jobs=-1)(
+        delayed(process_slice)(i) for i in tqdm(range(binary.shape[0]))
+    )
 
     # Combine the results
     for i in range(binary.shape[0]):
@@ -46,10 +48,13 @@ def process_volume(volume, n_samples):
         sample = volume.copy()
         value = sample[sample.shape[0] // 2, sample.shape[1] // 2].min()
         sample[label_image != label] = value
-        sample = sample[bbox[0]:bbox[3], bbox[1]:bbox[4], bbox[2]:bbox[5]]
+        sample = sample[bbox[0] : bbox[3], bbox[1] : bbox[4], bbox[2] : bbox[5]]
         return sample
 
-    volumes = Parallel(n_jobs=-1)(delayed(process_sample)(volume, label_image, props[i].label, props[i].bbox) for i in tqdm(range(n_samples)))
+    volumes = Parallel(n_jobs=-1)(
+        delayed(process_sample)(volume, label_image, props[i].label, props[i].bbox)
+        for i in tqdm(range(n_samples))
+    )
 
     bboxes = [props[i].bbox for i in range(n_samples)]
 

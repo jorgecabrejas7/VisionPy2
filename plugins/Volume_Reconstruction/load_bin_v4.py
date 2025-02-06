@@ -1,14 +1,9 @@
 from plugins.Volume_Reconstruction.data_fields import FIELDS, get_vch_fields
 
 from plugins.Volume_Reconstruction.field_loading import (
-    read_bin_file_field_float32,
-    read_bin_file_field_float64,
     read_bin_file_field_int16,
     read_bin_file_field_int32,
-    read_bin_file_field_string,
-    read_bin_file_field_uint16,
     read_bin_file_field_uint32,
-    read_bin_file_field_uint64,
 )
 
 
@@ -88,7 +83,7 @@ def load_bin_file_v4(f):
                         f"[Virtual Channel {i}] Reading Peak Position SW Gate {j}... OK"
                     )
 
-                    virtual_channel_data[f"sw_gate_{j+1}"] = {
+                    virtual_channel_data[f"sw_gate_{j + 1}"] = {
                         "id_gate": id_gate,
                         "peak_amplitude": peak_amplitude,
                         "peak_position": peak_position,
@@ -97,7 +92,7 @@ def load_bin_file_v4(f):
                 n_gates, error = read_function(f)
 
                 if error < 0:
-                    print(f"Error occurred while reading n_gates for channel {i+1}.")
+                    print(f"Error occurred while reading n_gates for channel {i + 1}.")
                     return data, error
 
                 if isinstance(n_gates, tuple):
@@ -108,7 +103,7 @@ def load_bin_file_v4(f):
 
                     if error < 0:
                         print(
-                            f"Error occurred while reading id_gate for channel {i+1} of HW gate {j+1}."
+                            f"Error occurred while reading id_gate for channel {i + 1} of HW gate {j + 1}."
                         )
                         return data, error
 
@@ -116,7 +111,7 @@ def load_bin_file_v4(f):
 
                     if error < 0:
                         print(
-                            f"Error occurred while reading peak_amplitude for channel {i+1} of HW gate {j+1}."
+                            f"Error occurred while reading peak_amplitude for channel {i + 1} of HW gate {j + 1}."
                         )
                         return data, error
 
@@ -128,7 +123,7 @@ def load_bin_file_v4(f):
 
                     if error < 0:
                         print(
-                            f"Error occurred while reading peak_position for channel {i+1} of HW gate {j+1}."
+                            f"Error occurred while reading peak_position for channel {i + 1} of HW gate {j + 1}."
                         )
                         return data, error
 
@@ -136,7 +131,7 @@ def load_bin_file_v4(f):
                         f"[Virtual Channel {i}] Reading Peak Position SW Gate {j}... OK"
                     )
 
-                    virtual_channel_data[f"hw_gate_{j+1}"] = {
+                    virtual_channel_data[f"hw_gate_{j + 1}"] = {
                         "id_gate": id_gate,
                         "peak_amplitude": peak_amplitude,
                         "peak_position": peak_position,
@@ -147,7 +142,7 @@ def load_bin_file_v4(f):
 
                 if error < 0:
                     print(
-                        f"Error occurred while reading n_encoders (Values) for channel {i+1}."
+                        f"Error occurred while reading n_encoders (Values) for channel {i + 1}."
                     )
                     return data, error
 
@@ -161,7 +156,7 @@ def load_bin_file_v4(f):
 
                     if error < 0:
                         print(
-                            f"Error occurred while reading data_int (Values) for channel {i+1} of encoder {j+1}."
+                            f"Error occurred while reading data_int (Values) for channel {i + 1} of encoder {j + 1}."
                         )
                         return data, error
 
@@ -169,27 +164,27 @@ def load_bin_file_v4(f):
 
                     if error < 0:
                         print(
-                            f"Error occurred while reading scan_encoder_value for channel {i+1} of encoder {j+1}."
+                            f"Error occurred while reading scan_encoder_value for channel {i + 1} of encoder {j + 1}."
                         )
                         return data, error
 
                     print(f"[Virtual Channel {i}] Reading Encoder {j} Value... OK")
 
-                    if f"encoder_{j+1}" not in virtual_channel_data:
-                        virtual_channel_data[f"encoder_{j+1}"] = {
+                    if f"encoder_{j + 1}" not in virtual_channel_data:
+                        virtual_channel_data[f"encoder_{j + 1}"] = {
                             "scan_encoder_value": scan_encoder_value
                         }
 
                     else:
-                        virtual_channel_data[f"encoder_{j+1}"]["scan_encoder_value"] = (
-                            scan_encoder_value
-                        )
+                        virtual_channel_data[f"encoder_{j + 1}"][
+                            "scan_encoder_value"
+                        ] = scan_encoder_value
 
             elif field_name == "n_encoders_edges_a":
                 n_encoders, error = read_function(f)
                 if error < 0:
                     print(
-                        f"Error occurred while reading n_encoders (Edges Channel A) for channel {i+1}."
+                        f"Error occurred while reading n_encoders (Edges Channel A) for channel {i + 1}."
                     )
                     return data, error
 
@@ -201,7 +196,7 @@ def load_bin_file_v4(f):
 
                     if error < 0:
                         print(
-                            f"Error occurred while reading data_int (Edges Channel A) for channel {i+1} of encoder {j+1}."
+                            f"Error occurred while reading data_int (Edges Channel A) for channel {i + 1} of encoder {j + 1}."
                         )
                         return data, error
 
@@ -209,7 +204,7 @@ def load_bin_file_v4(f):
                     print("value of scan_encoder_egdes_a: ", scan_encoder_egdes_a)
                     if error < 0:
                         print(
-                            f"Error occurred while reading scan_encoder_egdes (Edges Channel A) for channel {i+1} of encoder {j+1}."
+                            f"Error occurred while reading scan_encoder_egdes (Edges Channel A) for channel {i + 1} of encoder {j + 1}."
                         )
                         return data, error
 
@@ -217,13 +212,13 @@ def load_bin_file_v4(f):
                         f"[Virtual Channel {i}] Reading Encoder {j} Edges Channel A... OK"
                     )
 
-                    if f"encoder_{j+1}" not in virtual_channel_data:
-                        virtual_channel_data[f"encoder_{j+1}"] = {
+                    if f"encoder_{j + 1}" not in virtual_channel_data:
+                        virtual_channel_data[f"encoder_{j + 1}"] = {
                             "scan_encoder_egdes_a": scan_encoder_egdes_a
                         }
 
                     else:
-                        virtual_channel_data[f"encoder_{j+1}"][
+                        virtual_channel_data[f"encoder_{j + 1}"][
                             "scan_encoder_egdes_a"
                         ] = scan_encoder_egdes_a
 
@@ -232,7 +227,7 @@ def load_bin_file_v4(f):
 
                 if error < 0:
                     print(
-                        f"Error occurred while reading n_encoders (Edges Channel B) for channel {i+1}."
+                        f"Error occurred while reading n_encoders (Edges Channel B) for channel {i + 1}."
                     )
                     return data, error
 
@@ -244,7 +239,7 @@ def load_bin_file_v4(f):
 
                     if error < 0:
                         print(
-                            f"Error occurred while reading data_int (Edges Channel B) for channel {i+1} of encoder {j+1}."
+                            f"Error occurred while reading data_int (Edges Channel B) for channel {i + 1} of encoder {j + 1}."
                         )
                         return data, error
 
@@ -252,7 +247,7 @@ def load_bin_file_v4(f):
 
                     if error < 0:
                         print(
-                            f"Error occurred while reading scan_encoder_egdes (Edges Channel B) for channel {i+1} of encoder {j+1}."
+                            f"Error occurred while reading scan_encoder_egdes (Edges Channel B) for channel {i + 1} of encoder {j + 1}."
                         )
                         return data, error
 
@@ -260,13 +255,13 @@ def load_bin_file_v4(f):
                         f"[Virtual Channel {i}] Reading Encoder {j} Edges Channel B... OK"
                     )
 
-                    if f"encoder_{j+1}" not in virtual_channel_data:
-                        virtual_channel_data[f"encoder_{j+1}"] = {
+                    if f"encoder_{j + 1}" not in virtual_channel_data:
+                        virtual_channel_data[f"encoder_{j + 1}"] = {
                             "scan_encoder_egdes_b": scan_encoder_egdes_b
                         }
 
                     else:
-                        virtual_channel_data[f"encoder_{j+1}"][
+                        virtual_channel_data[f"encoder_{j + 1}"][
                             "scan_encoder_egdes_b"
                         ] = scan_encoder_egdes_b
 
@@ -275,7 +270,7 @@ def load_bin_file_v4(f):
 
                 if error < 0:
                     print(
-                        f"Error occurred while reading n_encoders (Edges Glitches A) for channel {i+1}."
+                        f"Error occurred while reading n_encoders (Edges Glitches A) for channel {i + 1}."
                     )
                     return data, error
 
@@ -287,7 +282,7 @@ def load_bin_file_v4(f):
 
                     if error < 0:
                         print(
-                            f"Error occurred while reading data_int (Edges Glitches A) for channel {i+1} of encoder {j+1}."
+                            f"Error occurred while reading data_int (Edges Glitches A) for channel {i + 1} of encoder {j + 1}."
                         )
                         return data, error
 
@@ -295,7 +290,7 @@ def load_bin_file_v4(f):
 
                     if error < 0:
                         print(
-                            f"Error occurred while reading scan_encoder_glitches (Edges Glitches A) for channel {i+1} of encoder {j+1}."
+                            f"Error occurred while reading scan_encoder_glitches (Edges Glitches A) for channel {i + 1} of encoder {j + 1}."
                         )
                         return data, error
 
@@ -303,13 +298,13 @@ def load_bin_file_v4(f):
                         f"[Virtual Channel {i}] Reading Encoder {j} Glitches Channel A... OK"
                     )
 
-                    if f"encoder_{j+1}" not in virtual_channel_data:
-                        virtual_channel_data[f"encoder_{j+1}"] = {
+                    if f"encoder_{j + 1}" not in virtual_channel_data:
+                        virtual_channel_data[f"encoder_{j + 1}"] = {
                             "scan_encoder_glitches_a": scan_encoder_glitches_a
                         }
 
                     else:
-                        virtual_channel_data[f"encoder_{j+1}"][
+                        virtual_channel_data[f"encoder_{j + 1}"][
                             "scan_encoder_glitches_a"
                         ] = scan_encoder_glitches_a
 
@@ -318,7 +313,7 @@ def load_bin_file_v4(f):
 
                 if error < 0:
                     print(
-                        f"Error occurred while reading n_encoders (Edges Glitches B) for channel {i+1}."
+                        f"Error occurred while reading n_encoders (Edges Glitches B) for channel {i + 1}."
                     )
                     return data, error
 
@@ -330,7 +325,7 @@ def load_bin_file_v4(f):
 
                     if error < 0:
                         print(
-                            f"Error occurred while reading data_int (Edges Glitches B) for channel {i+1} of encoder {j+1}."
+                            f"Error occurred while reading data_int (Edges Glitches B) for channel {i + 1} of encoder {j + 1}."
                         )
                         return data, error
 
@@ -338,7 +333,7 @@ def load_bin_file_v4(f):
 
                     if error < 0:
                         print(
-                            f"Error occurred while reading scan_encoder_glitches (Edges Glitches B) for channel {i+1} of encoder {j+1}."
+                            f"Error occurred while reading scan_encoder_glitches (Edges Glitches B) for channel {i + 1} of encoder {j + 1}."
                         )
                         return data, error
 
@@ -346,13 +341,13 @@ def load_bin_file_v4(f):
                         f"[Virtual Channel {i}] Reading Encoder {j} Glitches Channel B... OK"
                     )
 
-                    if f"encoder_{j+1}" not in virtual_channel_data:
-                        virtual_channel_data[f"encoder_{j+1}"] = {
+                    if f"encoder_{j + 1}" not in virtual_channel_data:
+                        virtual_channel_data[f"encoder_{j + 1}"] = {
                             "scan_encoder_glitches_b": scan_encoder_glitches_b
                         }
 
                     else:
-                        virtual_channel_data[f"encoder_{j+1}"][
+                        virtual_channel_data[f"encoder_{j + 1}"][
                             "scan_encoder_glitches_b"
                         ] = scan_encoder_glitches_b
 
@@ -361,7 +356,7 @@ def load_bin_file_v4(f):
 
                 if error < 0:
                     print(
-                        f"Error occurred while reading n_encoders (Sign Changes) for channel {i+1}."
+                        f"Error occurred while reading n_encoders (Sign Changes) for channel {i + 1}."
                     )
                     return data, error
 
@@ -373,7 +368,7 @@ def load_bin_file_v4(f):
 
                     if error < 0:
                         print(
-                            f"Error occurred while reading data_int (Sign Changes) for channel {i+1} of encoder {j+1}."
+                            f"Error occurred while reading data_int (Sign Changes) for channel {i + 1} of encoder {j + 1}."
                         )
                         return data, error
 
@@ -381,7 +376,7 @@ def load_bin_file_v4(f):
 
                     if error < 0:
                         print(
-                            f"Error occurred while reading sign_changes for channel {i+1} of encoder {j+1}."
+                            f"Error occurred while reading sign_changes for channel {i + 1} of encoder {j + 1}."
                         )
                         return data, error
 
@@ -389,13 +384,13 @@ def load_bin_file_v4(f):
                         f"[Virtual Channel {i}] Reading Encoder {j} Sign Changes... OK"
                     )
 
-                    if f"encoder_{j+1}" not in virtual_channel_data:
-                        virtual_channel_data[f"encoder_{j+1}"] = {
+                    if f"encoder_{j + 1}" not in virtual_channel_data:
+                        virtual_channel_data[f"encoder_{j + 1}"] = {
                             "sign_changes": sign_changes
                         }
 
                     else:
-                        virtual_channel_data[f"encoder_{j+1}"]["sign_changes"] = (
+                        virtual_channel_data[f"encoder_{j + 1}"]["sign_changes"] = (
                             sign_changes
                         )
 
@@ -404,7 +399,7 @@ def load_bin_file_v4(f):
 
                 if error < 0:
                     print(
-                        f"Error occurred while reading {field_name} for channel {i+1}."
+                        f"Error occurred while reading {field_name} for channel {i + 1}."
                     )
                     return data, error
 

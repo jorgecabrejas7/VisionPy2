@@ -17,10 +17,10 @@ from PyQt6.QtWidgets import (
     QToolBar,
     QVBoxLayout,
     QWidget,
-    QComboBox
 )
 from utils.progress_window import ProgressWindow
 import qdarktheme
+
 
 class ProgressDialog(QDialog):
     """
@@ -119,7 +119,7 @@ class MainWindow(QMainWindow):
         self.init_ui()
 
     def init_ui(self):
-        #Create a combo box to select the theme
+        # Create a combo box to select the theme
         self.theme_menu = self.menuBar().addMenu("Theme")
         for theme in qdarktheme.get_themes():
             action = QAction(theme, self)

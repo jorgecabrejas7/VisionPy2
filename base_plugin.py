@@ -9,7 +9,14 @@ from abc import abstractmethod
 import tifffile as tiff
 import zarr
 from PyQt6.QtCore import QEventLoop, QObject, pyqtSignal
-from PyQt6.QtWidgets import QFileDialog, QMessageBox, QDialog, QVBoxLayout, QPushButton, QInputDialog
+from PyQt6.QtWidgets import (
+    QFileDialog,
+    QMessageBox,
+    QDialog,
+    QVBoxLayout,
+    QPushButton,
+    QInputDialog,
+)
 
 from utils import image_sequence
 from utils.gui_utils import virtual_sequence_bbox, virtual_sequence_slice, get_bbox
@@ -149,6 +156,7 @@ class BasePlugin(QObject):
         Returns:
             str: The path of the selected file.
         """
+
         def callback(caption):
             file, _ = QFileDialog.getOpenFileName(self.main_window, caption=caption)
             return file
@@ -168,6 +176,7 @@ class BasePlugin(QObject):
             str: The selected file path.
 
         """
+
         def callback(caption):
             file, _ = QFileDialog.getSaveFileName(self.main_window, caption=caption)
             return file
@@ -177,29 +186,30 @@ class BasePlugin(QObject):
         )
 
     def select_folder(self, caption: str = None):
-            """
-            Opens a dialog box to select a folder.
+        """
+        Opens a dialog box to select a folder.
 
-            Args:
-                caption (str, optional): The caption for the dialog box. Defaults to None.
+        Args:
+            caption (str, optional): The caption for the dialog box. Defaults to None.
 
-            Returns:
-                str: The selected folder path.
-            """
-            def callback(caption):
-                if sys.platform == "win32":
-                    root_path = "C:\\"
-                else:
-                    root_path = os.path.expanduser("~")
-                folder = QFileDialog.getExistingDirectory(
-                    self.main_window, caption, root_path
-                )
-                return folder
+        Returns:
+            str: The selected folder path.
+        """
 
-            return self.request_gui(
-                callback, caption=caption if caption else "Select a folder"
+        def callback(caption):
+            if sys.platform == "win32":
+                root_path = "C:\\"
+            else:
+                root_path = os.path.expanduser("~")
+            folder = QFileDialog.getExistingDirectory(
+                self.main_window, caption, root_path
             )
-    
+            return folder
+
+        return self.request_gui(
+            callback, caption=caption if caption else "Select a folder"
+        )
+
     def ask_for_confirmation(self, message):
         """
         Opens a dialog box to ask for user confirmation (Yes/No).
@@ -210,10 +220,14 @@ class BasePlugin(QObject):
         Returns:
             bool: True if the user selects Yes, False otherwise.
         """
+
         def callback(message):
             reply = QMessageBox.question(
-                self.main_window, "Confirmation", message,
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No
+                self.main_window,
+                "Confirmation",
+                message,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
             )
             return reply == QMessageBox.StandardButton.Yes
 
@@ -358,6 +372,7 @@ class BasePlugin(QObject):
         Returns:
             None
         """
+
         def error_callback(caption: str) -> None:
             QMessageBox.critical(
                 self.main_window, "Error", caption, QMessageBox.StandardButton.Ok
@@ -368,43 +383,45 @@ class BasePlugin(QObject):
     # create a function to prompt a message box with a message
 
     def prompt_message(self, message_caption: str) -> None:
-            """
-            Displays a message box with the given caption.
+        """
+        Displays a message box with the given caption.
 
-            Args:
-                message_caption (str): The caption of the message box.
+        Args:
+            message_caption (str): The caption of the message box.
 
-            Returns:
-                None
-            """
-            def message_callback(caption: str) -> None:
-                QMessageBox.information(
-                    self.main_window, "Message", caption, QMessageBox.StandardButton.Ok
-                )
+        Returns:
+            None
+        """
 
-            return self.request_gui(message_callback, caption=message_caption)
+        def message_callback(caption: str) -> None:
+            QMessageBox.information(
+                self.main_window, "Message", caption, QMessageBox.StandardButton.Ok
+            )
+
+        return self.request_gui(message_callback, caption=message_caption)
 
     # Create a function to prompot a confirmation box with a message and yes and no buttons, return True if yes and False if no
     def prompt_confirmation(self, message_caption: str) -> bool:
-            """
-            Prompts the user for confirmation with a message caption.
+        """
+        Prompts the user for confirmation with a message caption.
 
-            Args:
-                message_caption (str): The message caption to display.
+        Args:
+            message_caption (str): The message caption to display.
 
-            Returns:
-                bool: True if the user confirms, False otherwise.
-            """
-            def confirmation_callback(caption: str) -> bool:
-                reply = QMessageBox.question(
-                    self.main_window,
-                    "Confirmation",
-                    caption,
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                )
-                return reply == QMessageBox.StandardButton.Yes
+        Returns:
+            bool: True if the user confirms, False otherwise.
+        """
 
-            return self.request_gui(confirmation_callback, caption=message_caption)
+        def confirmation_callback(caption: str) -> bool:
+            reply = QMessageBox.question(
+                self.main_window,
+                "Confirmation",
+                caption,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            return reply == QMessageBox.StandardButton.Yes
+
+        return self.request_gui(confirmation_callback, caption=message_caption)
 
     def ask_number(self, prompt_text: str, is_integer: bool = True):
         """
@@ -417,14 +434,19 @@ class BasePlugin(QObject):
         Returns:
             tuple: A tuple containing the number entered by the user and a boolean indicating if the input is valid.
         """
+
         def number_callback(prompt_text: str, is_integer: bool):
             if is_integer:
                 number, ok = QInputDialog.getInt(self.main_window, "Input", prompt_text)
             else:
-                number, ok = QInputDialog.getDouble(self.main_window, "Input", prompt_text)
+                number, ok = QInputDialog.getDouble(
+                    self.main_window, "Input", prompt_text
+                )
             return (number, ok)
 
-        result, ok = self.request_gui(number_callback, prompt_text=prompt_text, is_integer=is_integer)
+        result, ok = self.request_gui(
+            number_callback, prompt_text=prompt_text, is_integer=is_integer
+        )
         if ok:
             return result, True
         else:

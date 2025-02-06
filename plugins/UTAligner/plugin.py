@@ -30,13 +30,11 @@ class Plugin(BasePlugin):
             print(volume.shape)
 
             if auto:
-
                 gate = alg.autogate(volume)
-            
-            else:
 
-                gate = alg.get_gate(self,volume)
-            
+            else:
+                gate = alg.get_gate(self, volume)
+
             print(gate)
 
             volume = alg.align(volume, gate)
@@ -64,5 +62,3 @@ class Plugin(BasePlugin):
         else:
             # Show a message box if no file is selected
             self.prompt_error("No file selected.")
-
-    

@@ -5,7 +5,6 @@ import queue
 import threading
 import traceback
 
-import cv2
 import numpy as np
 import tifffile
 from PyQt6.QtCore import *
@@ -138,7 +137,7 @@ class Plugin(BasePlugin):
 
                 # Put the processed slice into the saving queue
                 saving_queue.put((i, slice_8bit, name))
-                del slice, standardized_slice, slice_8bit # eq_slice
+                del slice, standardized_slice, slice_8bit  # eq_slice
                 processing_queue.task_done()
             except queue.Empty:
                 continue

@@ -6,7 +6,8 @@ from scipy.ndimage import binary_fill_holes
 from skimage import feature
 from scipy.signal import hilbert
 
-def get_lines2( image):
+
+def get_lines2(image):
     # get the first and last pixel of the image
     linea = np.where(image >= 1)
     x0 = linea[0][0]
@@ -24,14 +25,14 @@ def get_lines2( image):
 
     return image2
 
-def find_brightest_ut(volume):
 
+def find_brightest_ut(volume):
     """
     This function finds the brightest slice in a 3D volume.
-    
+
     Parameters:
     volume (numpy.ndarray): 3D array representing the volume of an image.
-    
+
     Returns:
     int: Index of the brightest slice in the volume.
     """
@@ -48,13 +49,14 @@ def find_brightest_ut(volume):
 
     return brightest_slice
 
+
 def auto_gate(volume):
     """
     This function finds the range around the brightest slice in a 3D volume.
-    
+
     Parameters:
     volume (numpy.ndarray): 3D array representing the volume of an image.
-    
+
     Returns:
     tuple: Range around the brightest slice (brightest_slice - 5, brightest_slice + 5).
     """
@@ -63,17 +65,18 @@ def auto_gate(volume):
 
     resolution = 0.02
 
-    range = int(np.round(0.1/resolution))
+    range = int(np.round(0.1 / resolution))
 
     return (brightest_slice - range, brightest_slice + range)
+
 
 def crop_image_center(image):
     """
     This function crops the center of an image.
-    
+
     Parameters:
     image (numpy.ndarray): 2D array representing the image.
-    
+
     Returns:
     numpy.ndarray: Cropped image.
     """
@@ -87,34 +90,38 @@ def crop_image_center(image):
     start_height = height // 4
 
     # Crop the image
-    cropped_image = image[start_height:start_height+new_height, :]
+    cropped_image = image[start_height : start_height + new_height, :]
 
     return cropped_image
+
 
 def crop_volume(volume):
     """
     This function crops the center of each slice in a 3D volume.
-    
+
     Parameters:
     volume (numpy.ndarray): 3D array representing the volume of an image.
-    
+
     Returns:
     numpy.ndarray: Volume with each slice cropped.
     """
     aux = crop_image_center(volume[0])
-    cropped = np.zeros((volume.shape[0], aux.shape[0], aux.shape[1]), dtype=volume.dtype)
+    cropped = np.zeros(
+        (volume.shape[0], aux.shape[0], aux.shape[1]), dtype=volume.dtype
+    )
     for i in range(volume.shape[0]):
         cropped[i] = crop_image_center(volume[i])
-    
+
     return cropped
+
 
 def angle_max(volume):
     """
     This function calculates the rotation angle of the largest component in a 3D volume.
-    
+
     Parameters:
     volume (numpy.ndarray): 3D array representing the volume of an image.
-    
+
     Returns:
     float: Rotation angle of the largest component in degrees.
     """
@@ -122,9 +129,9 @@ def angle_max(volume):
 
     middle_slice = max_proj
 
-    #otsu threshold
+    # otsu threshold
     threshold_value = threshold_otsu(middle_slice)
-    print('threshold value is: ', threshold_value)
+    print("threshold value is: ", threshold_value)
     thresholded_slice = middle_slice > threshold_value
 
     # Label the objects in the thresholded slice
@@ -144,7 +151,7 @@ def angle_max(volume):
     # Apply the mask to the thresholded slice
     thresholded_slice = thresholded_slice * mask
 
-    #fill holes in the mask
+    # fill holes in the mask
     mask = binary_fill_holes(mask).astype(int)
 
     # extract edges using canny edge detector
@@ -182,30 +189,31 @@ def angle_max(volume):
 
     return -rotation_angle_degrees
 
+
 def is_RF(volume):
     """
     This function checks if the maximum value in a 3D volume is greater than 128.
-    
+
     Parameters:
     volume (numpy.ndarray): 3D array representing the volume of an image.
-    
+
     Returns:
     bool: True if the maximum value is greater than 128, False otherwise.
     """
 
     if np.max(volume) > 128:
         return True
-    
+
     return False
 
-def hillbert_transform(volume):
 
+def hillbert_transform(volume):
     """
     This function applies the Hilbert transform to a 3D volume.
-    
+
     Parameters:
     volume (numpy.ndarray): 3D array representing the volume of an image.
-    
+
     Returns:
     numpy.ndarray: Amplitude envelope of the Hilbert transform.
     """
@@ -221,14 +229,15 @@ def hillbert_transform(volume):
 
     return amplitude_envelope
 
+
 def align(data, gate):
     """
     This function aligns the data in a 3D volume based on the maximum value in a gated range.
-    
+
     Parameters:
     data (numpy.ndarray): 3D array representing the volume of an image.
     gate (tuple): Range for gating.
-    
+
     Returns:
     numpy.ndarray: Aligned data.
     """
@@ -243,15 +252,16 @@ def align(data, gate):
             rolled_data[:, i, j] = rolled
     return rolled_data
 
-def double_align(data,rf, gate):
+
+def double_align(data, rf, gate):
     """
     This function aligns the data and RF signals in a 3D volume based on the maximum value in a gated range.
-    
+
     Parameters:
     data (numpy.ndarray): 3D array representing the volume of an image.
     rf (numpy.ndarray): 3D array representing the RF signals.
     gate (tuple): Range for gating.
-    
+
     Returns:
     tuple: Aligned data and RF signals.
     """
@@ -270,4 +280,4 @@ def double_align(data,rf, gate):
             rolled_rf_signal = np.roll(rfsignal, -max_gated_data_index)
             rolled_RF[:, i, j] = rolled_rf_signal
 
-    return rolled_data,rolled_RF
+    return rolled_data, rolled_RF

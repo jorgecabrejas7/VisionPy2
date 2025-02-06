@@ -1,12 +1,8 @@
-
-
 from plugins.Volume_Reconstruction.field_loading import (
     read_bin_file_field_float32,
-    read_bin_file_field_float64,
     read_bin_file_field_int16,
     read_bin_file_field_int32,
     read_bin_file_field_string,
-    read_bin_file_field_uint16,
     read_bin_file_field_uint32,
     read_bin_file_field_uint64,
 )
