@@ -5,7 +5,6 @@ from PyQt6.QtCore import *
 from utils import image_sequence
 import os
 import matplotlib.pyplot as plt
-import numpy as np
 import matplotlib.pyplot as plt
 import plugins.Centering.centering as cnt
 

@@ -1,6 +1,6 @@
-numpy
-opencv-python
 matplotlib
+tifffile
+numpy
 scikit-image
 scipy
-joblib
+opencv-python

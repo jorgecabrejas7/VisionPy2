@@ -3,7 +3,6 @@ from base_plugin import BasePlugin
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from utils import image_sequence
-import matplotlib.pyplot as plt
 import tifffile as tiff
 import plugins.UTXCTregister.UTXCTregister as reg
 import numpy as np

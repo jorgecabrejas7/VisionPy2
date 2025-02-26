@@ -2,7 +2,6 @@
 from base_plugin import BasePlugin
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
-import numpy as np
 import matplotlib.pyplot as plt
 import tifffile as tiff
 from utils import image_sequence
