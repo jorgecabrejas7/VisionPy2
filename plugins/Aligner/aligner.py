@@ -13,6 +13,8 @@ from concurrent.futures import ThreadPoolExecutor
 from scipy.ndimage import binary_fill_holes
 from skimage import feature
 from joblib import Parallel, delayed
+from scipy.ndimage import affine_transform
+from scipy.spatial.transform import Rotation as R
 
 def get_lines(image):
 
@@ -545,3 +547,41 @@ def rotate_volume_concurrent(volume, angle, progress_window=None):
             )
 
     return rotated_volume
+
+def align_sample(volume, mask):
+    """
+    Aligns the CFRP sample with the coordinate axes.
+
+    Parameters:
+    volume (np.ndarray): 3D NumPy array of the grayscale volume.
+    mask (np.ndarray): 3D NumPy array of the binary mask of what is going to be aligned.
+
+    Returns:
+    aligned_volume (np.ndarray): Aligned grayscale volume.
+    aligned_mask (np.ndarray): Aligned binary mask.
+    """
+    #check if mask and volume are the same size
+    if volume.shape != mask.shape:
+        raise ValueError("Volume and mask must have the same shape.")
+    # Estimate the orientation of the sample using the binary mask
+    coords = np.column_stack(np.where(mask))
+    cov_matrix = np.cov(coords, rowvar=False)
+    eigvals, eigvecs = np.linalg.eigh(cov_matrix)
+
+    # Ensure the eigenvectors are sorted by eigenvalues in descending order
+    sorted_indices = np.argsort(-eigvals)
+    eigvecs = eigvecs[:, sorted_indices]
+
+    # Compute the best transformation (rotation) to align the sample with the axes
+    rotation_matrix = eigvecs
+    rotation = R.from_matrix(rotation_matrix)
+    rotation_matrix = rotation.as_matrix()
+
+    # Center of the volume
+    center = np.array(volume.shape) / 2
+
+    # Apply the transformation to both the volume and the mask
+    aligned_volume = affine_transform(volume, rotation_matrix, offset=center - rotation_matrix @ center, order=1)
+    aligned_mask = affine_transform(mask, rotation_matrix, offset=center - rotation_matrix @ center, order=0)
+
+    return aligned_volume, aligned_mask

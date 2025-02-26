@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 import matplotlib.pyplot as plt
 import tifffile as tiff
-import plugins.onlypores.onlypores as op
+import plugins.Onlypores.onlypores as op
 import numpy as np
 
 # Define a class that implements the PluginInterface
