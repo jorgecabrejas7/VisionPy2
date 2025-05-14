@@ -322,3 +322,7 @@ cython_debug/
 *.tiff
 *.png
 .ruff_cache/
+
+#database files
+plugins/UTXCTregister/main_new_database.ipynb
+plugins/DatasetMaker/main_new_database.ipynb

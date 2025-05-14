@@ -141,7 +141,7 @@ def patch(onlypores_cropped, mask_cropped, ut_rf_cropped, ut_patch_size = 3, ut_
     patches_mask = divide_into_patches(mask_cropped,xct_patch_size, xct_step_size)
     # patches_mask = patches_mask[:, :, center_size:-center_size, center_size:-center_size]
 
-    return patches_onlypores, patches_mask, patches_ut
+    return patches_onlypores, patches_mask, patches_ut, ut_rf_cropped.shape
 
 def patch_2(onlypores_cropped, mask_cropped, ut_rf_cropped, ut_patch_size = 3, ut_step_size = 1, beam_size = 3, xct_resolution = 0.025, ut_resolution = 1):
     # Compute XCT patch size
@@ -379,24 +379,28 @@ def datasets1(patches_onlypores, patches_mask, patches_ut, folder, ut_patch_size
 
     #save the dataframes
 
-    df_patch_vs_volfrac.to_csv(folder / ('patch_vs_volfrac_' + str(ut_patch_size) + '.csv'), index = False)
+    save_path = folder / ('patch_vs_volfrac_' + str(ut_patch_size) + '.csv')
 
-    return df_patch_vs_volfrac
+    df_patch_vs_volfrac.to_csv(save_path, index = False)
+
+    return df_patch_vs_volfrac, save_path
 
 def main(onlypores,mask,ut_rf,folder, xct_resolution = 0.025, ut_resolution = 1,ut_patch_size = 3, ut_step_size =1):
     from time import time
     print('Preprocessing and patching the images...')
     #preprocess the images
-    onlypores_cropped, mask_cropped, ut_rf_cropped = preprocess(onlypores,mask,ut_rf, xct_resolution, ut_resolution)
+    onlypores_cropped, mask_cropped, ut_rf_cropped = preprocess(onlypores,mask,ut_rf, xct_resolution, ut_resolution)    
     print('Layer cleaning')
     # onlypores_cropped = layer_cleaning(mask_cropped, onlypores_cropped)
     print('Patching the images...')
     #patch the images
-    patches_onlypores, patches_mask, patches_ut = patch(onlypores_cropped, mask_cropped, ut_rf_cropped, ut_patch_size, ut_step_size, xct_resolution, ut_resolution)
+    patches_onlypores, patches_mask, patches_ut, shape = patch(onlypores_cropped, mask_cropped, ut_rf_cropped, ut_patch_size, ut_step_size, xct_resolution, ut_resolution)
     print('Cleaning the pores...')
     # patches_onlypores = clean_pores_3D(patches_onlypores)
     print('Creating the datasets...')
     #create the datasets
-    datasets1(patches_onlypores, patches_mask, patches_ut, folder,ut_patch_size)
+    df, save_path = datasets1(patches_onlypores, patches_mask, patches_ut, folder,ut_patch_size)
+
+    return shape, len(df), save_path
 
 
