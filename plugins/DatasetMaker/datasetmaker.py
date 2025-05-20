@@ -15,7 +15,7 @@ def divide_into_patches(image, patch_size, step_size):
     return patches.reshape(-1, image.shape[0], patch_size, patch_size)
 
 def generate_patches(image, patch_size, step_size):
-    channels, height, width = image.shape
+    _, height, width = image.shape
     for i in range(0, height - patch_size + 1, step_size):
         for j in range(0, width - patch_size + 1, step_size):
             patch = image[:, i:i + patch_size, j:j + patch_size]
