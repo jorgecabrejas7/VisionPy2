@@ -2,4 +2,3 @@ numpy
 scikit-image
 fill-voids
 joblib
-git+https://github.com/topeberti/UTvsXCT-preprocessing.git

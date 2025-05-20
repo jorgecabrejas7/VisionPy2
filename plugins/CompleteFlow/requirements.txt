@@ -1,4 +1,3 @@
 numpy
 matplotlib
 tifffile
-git+https://github.com/topeberti/UTvsXCT-preprocessing.git

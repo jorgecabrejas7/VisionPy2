@@ -1,3 +1,4 @@
 matplotlib
 PyQt6
 pyqtdarktheme
+git+https://github.com/topeberti/UTvsXCT-preprocessing.git
