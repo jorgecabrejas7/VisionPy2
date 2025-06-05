@@ -402,5 +402,3 @@ def main(onlypores,mask,ut_rf,folder, xct_resolution = 0.025, ut_resolution = 1,
     df, save_path = datasets1(patches_onlypores, patches_mask, patches_ut, folder,ut_patch_size)
 
     return shape, len(df), save_path
-
-
