@@ -48,7 +48,7 @@ class Plugin(BasePlugin):
                 volume = np.transpose(volume, (2, 1, 0))
                 # Apply the onlypores function to the volume
                 self.update_progress(50, "Calculating "+ file_path, index, len(files_paths))
-                onlypores_volume, sample_mask, binary = onlypores.onlypores(volume,frontwall,backwall,sauvola_radius = 30, sauvola_k = 0.125)
+                onlypores_volume, sample_mask, binary = onlypores.onlypores(volume,frontwall,backwall,sauvola_radius = 30, sauvola_k = 0.125, min_size_filtering=8)
                 self.update_progress(75, "Saving "+ file_path, index, len(files_paths))
                 save_path = file_path.replace(".tif", "_onlypores.tif")
                 tiff.imsave(save_path, onlypores_volume.astype(np.uint8) * 255)
